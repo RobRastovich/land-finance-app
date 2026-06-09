@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
-
-const BASE = process.env.REACT_APP_API_ENDPOINT || 'http://localhost:4000';
+import * as api from '../api/client';
 
 export default function Login({ onAuth }) {
   const [mode, setMode] = useState('login'); // 'login' | 'forgot' | 'reset'
-  const [form, setForm] = useState({ name: '', email: '', password: '', token: '', newPassword: '' });
+  const [form, setForm] = useState({ email: '', password: '', token: '', newPassword: '' });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
@@ -19,36 +18,18 @@ export default function Login({ onAuth }) {
     setLoading(true);
     try {
       if (mode === 'forgot') {
-        const res = await fetch(`${BASE}/auth/forgot-password`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: form.email }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.message || 'Something went wrong');
+        const data = await api.forgotPassword(form.email);
         if (data.resetToken) setResetToken(data.resetToken);
         setSuccess('Reset token generated. Check below to reset your password.');
         setMode('reset');
       } else if (mode === 'reset') {
         const tokenToUse = form.token || resetToken;
-        const res = await fetch(`${BASE}/auth/reset-password`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token: tokenToUse, newPassword: form.newPassword }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.message || 'Something went wrong');
+        await api.resetPassword(tokenToUse, form.newPassword);
         setSuccess('Password reset! You can now sign in.');
         setMode('login');
         setResetToken('');
       } else {
-        const res = await fetch(`${BASE}/auth/login`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: form.email, password: form.password }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.message || 'Something went wrong');
+        const data = await api.login(form.email, form.password);
         localStorage.setItem('token', data.token);
         onAuth(data.user, data.token);
       }

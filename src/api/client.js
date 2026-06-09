@@ -22,6 +22,16 @@ async function request(method, path, body) {
   return res.json();
 }
 
+// ── Auth (public, no token needed) ───────────────────────────
+export const login = (email, password) =>
+  request('POST', '/auth/login', { email, password });
+export const register = (data) =>
+  request('POST', '/auth/register', data);
+export const forgotPassword = (email) =>
+  request('POST', '/auth/forgot-password', { email });
+export const resetPassword = (token, newPassword) =>
+  request('POST', '/auth/reset-password', { token, newPassword });
+
 // ── Projects ─────────────────────────────────────────────────
 export const getProjects = () => request('GET', '/api/projects');
 export const createProject = (data) => request('POST', '/api/projects', data);

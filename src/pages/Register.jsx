@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
-
-const BASE = process.env.REACT_APP_API_ENDPOINT || 'http://localhost:4000';
+import * as api from '../api/client';
 
 export default function Register({ onAuth }) {
   const { inviteToken } = useParams();
@@ -16,13 +15,7 @@ export default function Register({ onAuth }) {
     setError('');
     setLoading(true);
     try {
-      const res = await fetch(`${BASE}/auth/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, invite_token: inviteToken }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Something went wrong');
+      const data = await api.register({ ...form, invite_token: inviteToken });
       localStorage.setItem('token', data.token);
       onAuth(data.user, data.token);
     } catch (err) {
