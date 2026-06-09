@@ -26,7 +26,10 @@ pool.on('error', (err) => console.error('PG pool error:', err));
 
 // ── JWT auth middleware ───────────────────────────────────────
 function authMiddleware(req, res, next) {
-  if (process.env.REACT_APP_LOCAL_DEV === 'true') return next();
+  if (process.env.REACT_APP_LOCAL_DEV === 'true') {
+    req.user = { sub: '00000000-0000-0000-0000-000000000000', role: 'admin' };
+    return next();
+  }
   const token = (req.headers.authorization || '').replace('Bearer ', '');
   if (!token) return res.status(401).json({ message: 'No token provided' });
   try {
@@ -37,23 +40,44 @@ function authMiddleware(req, res, next) {
   }
 }
 
+function adminOnly(req, res, next) {
+  if (process.env.REACT_APP_LOCAL_DEV === 'true') return next();
+  if (req.user && req.user.role === 'admin') return next();
+  res.status(403).json({ message: 'Admin access required' });
+}
+
 app.use(cors({ origin: process.env.FRONTEND_URL || '*' }));
 app.use(express.json());
 
 // ── Auth routes (public) ──────────────────────────────────────
+// Invite-based registration (public, requires valid invite token)
 app.post('/auth/register', async (req, res) => {
-  const { name, email, password } = req.body;
+  const { name, email, password, invite_token } = req.body;
   if (!name || !email || !password)
     return res.status(400).json({ message: 'name, email, and password are required' });
   try {
+    // Validate invite token if provided
+    let role = 'standard';
+    if (invite_token) {
+      try {
+        const payload = jwt.verify(invite_token, JWT_SECRET);
+        if (payload.purpose !== 'invite')
+          return res.status(400).json({ message: 'Invalid invite token' });
+        role = payload.role || 'standard';
+      } catch (e) {
+        if (e.name === 'TokenExpiredError')
+          return res.status(400).json({ message: 'Invite link has expired' });
+        return res.status(400).json({ message: 'Invalid invite token' });
+      }
+    }
     const hash = await bcrypt.hash(password, 10);
     const { rows } = await pool.query(
-      `INSERT INTO users (name, email, password_hash) VALUES ($1, $2, $3)
-       RETURNING id, name, email, created_at`,
-      [name, email, hash]
+      `INSERT INTO users (name, email, password_hash, role) VALUES ($1, $2, $3, $4)
+       RETURNING id, name, email, role, created_at`,
+      [name, email, hash, role]
     );
     const user = rows[0];
-    const token = jwt.sign({ sub: user.id, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign({ sub: user.id, email: user.email, name: user.name, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
     res.status(201).json({ token, user });
   } catch (e) {
     if (e.code === '23505') return res.status(409).json({ message: 'Email already registered' });
@@ -70,8 +94,57 @@ app.post('/auth/login', async (req, res) => {
     const user = rows[0];
     if (!user || !(await bcrypt.compare(password, user.password_hash)))
       return res.status(401).json({ message: 'Invalid email or password' });
-    const token = jwt.sign({ sub: user.id, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: '7d' });
-    res.json({ token, user: { id: user.id, name: user.name, email: user.email } });
+    const token = jwt.sign({ sub: user.id, email: user.email, name: user.name, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+    res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+  } catch (e) {
+    res.status(500).json({ message: e.message });
+  }
+});
+
+// ── Password reset (public) ─────────────────────────────────
+app.post('/auth/forgot-password', async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ message: 'email is required' });
+  try {
+    const { rows } = await pool.query('SELECT id, email FROM users WHERE email = $1', [email]);
+    if (rows.length === 0) {
+      // Don't reveal whether email exists
+      return res.json({ message: 'If that email is registered, a reset token has been generated.' });
+    }
+    // Generate a short-lived reset token (15 min)
+    const resetToken = jwt.sign({ sub: rows[0].id, purpose: 'reset' }, JWT_SECRET, { expiresIn: '15m' });
+    // In production, email this token. For now, return it in response.
+    console.log(`Password reset token for ${email}: ${resetToken}`);
+    res.json({ message: 'If that email is registered, a reset token has been generated.', resetToken });
+  } catch (e) {
+    res.status(500).json({ message: e.message });
+  }
+});
+
+app.post('/auth/reset-password', async (req, res) => {
+  const { token, newPassword } = req.body;
+  if (!token || !newPassword)
+    return res.status(400).json({ message: 'token and newPassword are required' });
+  try {
+    const payload = jwt.verify(token, JWT_SECRET);
+    if (payload.purpose !== 'reset')
+      return res.status(400).json({ message: 'Invalid reset token' });
+    const hash = await bcrypt.hash(newPassword, 10);
+    await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [hash, payload.sub]);
+    res.json({ message: 'Password updated successfully' });
+  } catch (e) {
+    if (e.name === 'TokenExpiredError')
+      return res.status(400).json({ message: 'Reset token has expired' });
+    res.status(400).json({ message: 'Invalid reset token' });
+  }
+});
+
+// ── Invite link generation (admin only) ─────────────────────
+app.post('/auth/invite', authMiddleware, adminOnly, async (req, res) => {
+  const { role } = req.body;
+  try {
+    const inviteToken = jwt.sign({ purpose: 'invite', role: role || 'standard' }, JWT_SECRET, { expiresIn: '7d' });
+    res.json({ inviteToken });
   } catch (e) {
     res.status(500).json({ message: e.message });
   }
@@ -117,11 +190,7 @@ async function recalcTranche(tranche, contract) {
   await pool.query(
     `UPDATE tranches SET
        base_lot_price = $1, months_escalated = $2, adj_lot_price = $3,
-       projected_revenue = $4, projected_em = $5, escalator_lift = $6,
-       tranche_number = (SELECT COUNT(*) FROM tranches t2
-                        WHERE t2.contract_id = tranches.contract_id
-                          AND t2.scheduled_date <= tranches.scheduled_date
-                          AND t2.id <= tranches.id)
+       projected_revenue = $4, projected_em = $5, escalator_lift = $6
      WHERE id = $7`,
     [baseLotPrice, months, adjPrice, revenue, em, lift, tranche.id]
   );
@@ -132,6 +201,18 @@ app.get('/api/projects', async (req, res) => {
   try {
     const { rows } = await pool.query('SELECT * FROM projects ORDER BY name');
     res.json(rows);
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
+app.post('/api/projects', async (req, res) => {
+  const { name, description } = req.body;
+  if (!name) return res.status(400).json({ message: 'name is required' });
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO projects (name, description) VALUES ($1, $2) RETURNING *`,
+      [name, description || null]
+    );
+    res.status(201).json(rows[0]);
   } catch (e) { res.status(500).json({ message: e.message }); }
 });
 
@@ -311,7 +392,248 @@ app.get('/api/projects/:projectId/dashboard', async (req, res) => {
   } catch (e) { res.status(500).json({ message: e.message }); }
 });
 
+// ── Routes: Payments (Receivables) ──────────────────────────────
+app.get('/api/projects/:projectId/payments', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT r.*, b.name as builder_name, lc.lot_size_label,
+              t.tranche_number, t.scheduled_date as tranche_date
+       FROM receivables r
+       JOIN lot_contracts lc ON r.contract_id = lc.id
+       JOIN builders b ON lc.builder_id = b.id
+       LEFT JOIN tranches t ON r.tranche_id = t.id
+       WHERE lc.project_id = $1
+       ORDER BY r.due_date DESC`,
+      [req.params.projectId]
+    );
+    res.json(rows);
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
+app.post('/api/projects/:projectId/payments', async (req, res) => {
+  const { contract_id, tranche_id, payment_type, amount_expected, amount_received, due_date, received_date, status, reference_num, notes } = req.body;
+  if (!contract_id || !payment_type || !amount_expected || !due_date)
+    return res.status(400).json({ message: 'contract_id, payment_type, amount_expected, and due_date are required' });
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO receivables (contract_id, tranche_id, payment_type, amount_expected, amount_received, due_date, received_date, status, reference_num, notes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+      [contract_id, tranche_id || null, payment_type, amount_expected, amount_received || 0, due_date, received_date || null, status || 'pending', reference_num || null, notes || null]
+    );
+    res.status(201).json(rows[0]);
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
+app.put('/api/payments/:id', async (req, res) => {
+  const { amount_received, received_date, status, reference_num, notes } = req.body;
+  try {
+    const { rows } = await pool.query(
+      `UPDATE receivables SET amount_received=$1, received_date=$2, status=$3, reference_num=$4, notes=$5
+       WHERE id=$6 RETURNING *`,
+      [amount_received, received_date || null, status, reference_num || null, notes || null, req.params.id]
+    );
+    if (rows.length === 0) return res.status(404).json({ message: 'Payment not found' });
+    res.json(rows[0]);
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
+app.delete('/api/payments/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM receivables WHERE id=$1', [req.params.id]);
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
+// ── Routes: Expenses ────────────────────────────────────────────
+app.get('/api/projects/:projectId/expenses', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM expenses WHERE project_id = $1 ORDER BY expense_date DESC',
+      [req.params.projectId]
+    );
+    res.json(rows);
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
+app.post('/api/projects/:projectId/expenses', async (req, res) => {
+  const { category, description, amount, expense_date, vendor, reference_num, notes } = req.body;
+  if (!category || !amount || !expense_date)
+    return res.status(400).json({ message: 'category, amount, and expense_date are required' });
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO expenses (project_id, category, description, amount, expense_date, vendor, reference_num, notes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [req.params.projectId, category, description || null, amount, expense_date, vendor || null, reference_num || null, notes || null]
+    );
+    res.status(201).json(rows[0]);
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
+app.put('/api/expenses/:id', async (req, res) => {
+  const { category, description, amount, expense_date, vendor, reference_num, notes } = req.body;
+  try {
+    const { rows } = await pool.query(
+      `UPDATE expenses SET category=$1, description=$2, amount=$3, expense_date=$4, vendor=$5, reference_num=$6, notes=$7
+       WHERE id=$8 RETURNING *`,
+      [category, description || null, amount, expense_date, vendor || null, reference_num || null, notes || null, req.params.id]
+    );
+    if (rows.length === 0) return res.status(404).json({ message: 'Expense not found' });
+    res.json(rows[0]);
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
+app.delete('/api/expenses/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM expenses WHERE id=$1', [req.params.id]);
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
+// ── Routes: P&L Summary ─────────────────────────────────────────
+app.get('/api/projects/:projectId/pnl', async (req, res) => {
+  try {
+    // Revenue: sum of received payments
+    const { rows: [revenue] } = await pool.query(
+      `SELECT
+         COALESCE(SUM(amount_received), 0) as total_received,
+         COALESCE(SUM(amount_expected), 0) as total_expected,
+         COUNT(*) FILTER (WHERE status = 'paid') as paid_count,
+         COUNT(*) FILTER (WHERE status = 'pending') as pending_count,
+         COUNT(*) FILTER (WHERE status = 'overdue') as overdue_count
+       FROM receivables r
+       JOIN lot_contracts lc ON r.contract_id = lc.id
+       WHERE lc.project_id = $1`,
+      [req.params.projectId]
+    );
+
+    // Expenses: sum by category
+    const { rows: expensesByCategory } = await pool.query(
+      `SELECT category, COALESCE(SUM(amount), 0) as total
+       FROM expenses WHERE project_id = $1
+       GROUP BY category ORDER BY total DESC`,
+      [req.params.projectId]
+    );
+
+    const { rows: [expenseTotal] } = await pool.query(
+      `SELECT COALESCE(SUM(amount), 0) as total FROM expenses WHERE project_id = $1`,
+      [req.params.projectId]
+    );
+
+    // Monthly breakdown
+    const { rows: monthlyRevenue } = await pool.query(
+      `SELECT TO_CHAR(received_date, 'YYYY-MM') as month,
+              COALESCE(SUM(amount_received), 0) as revenue
+       FROM receivables r
+       JOIN lot_contracts lc ON r.contract_id = lc.id
+       WHERE lc.project_id = $1 AND r.received_date IS NOT NULL
+       GROUP BY month ORDER BY month`,
+      [req.params.projectId]
+    );
+
+    const { rows: monthlyExpenses } = await pool.query(
+      `SELECT TO_CHAR(expense_date, 'YYYY-MM') as month,
+              COALESCE(SUM(amount), 0) as expenses
+       FROM expenses WHERE project_id = $1
+       GROUP BY month ORDER BY month`,
+      [req.params.projectId]
+    );
+
+    res.json({
+      revenue: {
+        total_received: parseFloat(revenue.total_received),
+        total_expected: parseFloat(revenue.total_expected),
+        paid_count: parseInt(revenue.paid_count),
+        pending_count: parseInt(revenue.pending_count),
+        overdue_count: parseInt(revenue.overdue_count),
+      },
+      expenses: {
+        total: parseFloat(expenseTotal.total),
+        by_category: expensesByCategory.map(r => ({ category: r.category, total: parseFloat(r.total) })),
+      },
+      net_income: parseFloat(revenue.total_received) - parseFloat(expenseTotal.total),
+      monthly: { revenue: monthlyRevenue, expenses: monthlyExpenses },
+    });
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
+// ── Routes: User Management (admin only) ────────────────────────
+app.get('/api/users', authMiddleware, adminOnly, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT u.id, u.name, u.email, u.role, u.created_at,
+              COALESCE(json_agg(json_build_object('id', uc.project_id, 'name', p.name))
+                FILTER (WHERE uc.project_id IS NOT NULL), '[]') as communities
+       FROM users u
+       LEFT JOIN user_communities uc ON u.id = uc.user_id
+       LEFT JOIN projects p ON uc.project_id = p.id
+       GROUP BY u.id
+       ORDER BY u.name`
+    );
+    res.json(rows);
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
+app.put('/api/users/:id', authMiddleware, adminOnly, async (req, res) => {
+  const { name, email, role } = req.body;
+  try {
+    const { rows } = await pool.query(
+      `UPDATE users SET name = COALESCE($1, name), email = COALESCE($2, email), role = COALESCE($3, role)
+       WHERE id = $4 RETURNING id, name, email, role, created_at`,
+      [name, email, role, req.params.id]
+    );
+    if (rows.length === 0) return res.status(404).json({ message: 'User not found' });
+    res.json(rows[0]);
+  } catch (e) {
+    if (e.code === '23505') return res.status(409).json({ message: 'Email already in use' });
+    res.status(500).json({ message: e.message });
+  }
+});
+
+app.delete('/api/users/:id', authMiddleware, adminOnly, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM users WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
+// Assign communities to a user
+app.put('/api/users/:id/communities', authMiddleware, adminOnly, async (req, res) => {
+  const { project_ids } = req.body; // array of project UUIDs
+  if (!Array.isArray(project_ids))
+    return res.status(400).json({ message: 'project_ids must be an array' });
+  try {
+    // Remove existing assignments
+    await pool.query('DELETE FROM user_communities WHERE user_id = $1', [req.params.id]);
+    // Insert new ones
+    for (const pid of project_ids) {
+      await pool.query(
+        'INSERT INTO user_communities (user_id, project_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+        [req.params.id, pid]
+      );
+    }
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
+// Get communities the current user has access to
+app.get('/api/my/communities', authMiddleware, async (req, res) => {
+  try {
+    if (process.env.REACT_APP_LOCAL_DEV === 'true' || req.user.role === 'admin') {
+      const { rows } = await pool.query('SELECT * FROM projects ORDER BY name');
+      return res.json(rows);
+    }
+    const { rows } = await pool.query(
+      `SELECT p.* FROM projects p
+       JOIN user_communities uc ON p.id = uc.project_id
+       WHERE uc.user_id = $1
+       ORDER BY p.name`,
+      [req.user.sub]
+    );
+    res.json(rows);
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
 if (require.main === module) {
-  app.listen(PORT, () => console.log(`Melina API listening on port ${PORT}`));
+  app.listen(PORT, () => console.log(`ACREs API listening on port ${PORT}`));
 }
 module.exports = app;

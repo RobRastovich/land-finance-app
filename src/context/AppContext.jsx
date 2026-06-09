@@ -3,7 +3,7 @@ import * as api from '../api/client';
 
 const AppContext = createContext(null);
 
-export function AppProvider({ children }) {
+export function AppProvider({ children, user }) {
   const [projectId, setProjectId] = useState(null);
   const [projects, setProjects]   = useState([]);
   const [builders, setBuilders]   = useState([]);
@@ -11,33 +11,48 @@ export function AppProvider({ children }) {
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState(null);
 
-  // Load projects on mount
+  const isAdmin = user?.role === 'admin';
+
+  // Load projects scoped to user role
   useEffect(() => {
-    api.getProjects()
-      .then(data => {
-        setProjects(data);
-        if (data.length > 0) setProjectId(data[0].id);
-      })
+    const loadProjects = isAdmin ? api.getProjects : api.getMyCommunities;
+    loadProjects()
+      .then(data => { setProjects(data); })
       .catch(e => setError(e.message));
-  }, []);
+  }, [isAdmin]);
+
+  // Refresh projects list
+  const refreshProjects = useCallback(async () => {
+    try {
+      const loadProjects = isAdmin ? api.getProjects : api.getMyCommunities;
+      const data = await loadProjects();
+      setProjects(data);
+    } catch (e) { setError(e.message); }
+  }, [isAdmin]);
 
   // Load builders + contracts when project changes
   const reload = useCallback(async () => {
-    if (!projectId) return;
+    if (!projectId) {
+      await refreshProjects();
+      return;
+    }
     setLoading(true);
     try {
-      const [b, c] = await Promise.all([
+      const loadProjects = isAdmin ? api.getProjects : api.getMyCommunities;
+      const [b, c, p] = await Promise.all([
         api.getBuilders(projectId),
         api.getContracts(projectId),
+        loadProjects(),
       ]);
       setBuilders(b);
       setContracts(c);
+      setProjects(p);
     } catch (e) {
       setError(e.message);
     } finally {
       setLoading(false);
     }
-  }, [projectId]);
+  }, [projectId, refreshProjects, isAdmin]);
 
   useEffect(() => { reload(); }, [reload]);
 
@@ -45,7 +60,8 @@ export function AppProvider({ children }) {
     <AppContext.Provider value={{
       projectId, setProjectId,
       projects, builders, contracts,
-      loading, error, reload,
+      loading, error, reload, refreshProjects,
+      user, isAdmin,
     }}>
       {children}
     </AppContext.Provider>

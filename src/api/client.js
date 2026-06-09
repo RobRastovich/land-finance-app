@@ -24,6 +24,7 @@ async function request(method, path, body) {
 
 // ── Projects ─────────────────────────────────────────────────
 export const getProjects = () => request('GET', '/api/projects');
+export const createProject = (data) => request('POST', '/api/projects', data);
 
 // ── Builders ─────────────────────────────────────────────────
 export const getBuilders = (projectId) =>
@@ -62,3 +63,37 @@ export const getDashboard = (projectId, days = 90) =>
 // ── Cash Flow ────────────────────────────────────────────────
 export const getCashFlow = (projectId) =>
   request('GET', `/api/projects/${projectId}/cashflow`);
+
+// ── Payments (Receivables) ───────────────────────────────────
+export const getPayments = (projectId) =>
+  request('GET', `/api/projects/${projectId}/payments`);
+export const createPayment = (projectId, data) =>
+  request('POST', `/api/projects/${projectId}/payments`, data);
+export const updatePayment = (id, data) =>
+  request('PUT', `/api/payments/${id}`, data);
+export const deletePayment = (id) =>
+  request('DELETE', `/api/payments/${id}`);
+
+// ── Expenses ─────────────────────────────────────────────────
+export const getExpenses = (projectId) =>
+  request('GET', `/api/projects/${projectId}/expenses`);
+export const createExpense = (projectId, data) =>
+  request('POST', `/api/projects/${projectId}/expenses`, data);
+export const updateExpense = (id, data) =>
+  request('PUT', `/api/expenses/${id}`, data);
+export const deleteExpense = (id) =>
+  request('DELETE', `/api/expenses/${id}`);
+
+// ── P&L ──────────────────────────────────────────────────────
+export const getPnL = (projectId) =>
+  request('GET', `/api/projects/${projectId}/pnl`);
+
+// ── Users (admin) ────────────────────────────────────────────
+export const getUsers = () => request('GET', '/api/users');
+export const updateUser = (id, data) => request('PUT', `/api/users/${id}`, data);
+export const deleteUser = (id) => request('DELETE', `/api/users/${id}`);
+export const assignCommunities = (userId, projectIds) =>
+  request('PUT', `/api/users/${userId}/communities`, { project_ids: projectIds });
+export const generateInvite = (role) =>
+  request('POST', '/auth/invite', { role });
+export const getMyCommunities = () => request('GET', '/api/my/communities');
