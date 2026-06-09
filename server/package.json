@@ -7,11 +7,13 @@
     "dev": "nodemon index.js"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
+    "dotenv": "^17.4.2",
     "express": "^4.18.2",
     "jsonwebtoken": "^9.0.2",
-    "jwks-rsa": "^3.1.0",
     "pg": "^8.11.3",
+    "serverless-http": "^4.0.0",
     "uuid": "^14.0.0"
   },
   "devDependencies": {

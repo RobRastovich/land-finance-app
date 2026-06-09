@@ -1,22 +1,15 @@
-import { fetchAuthSession } from 'aws-amplify/auth';
-
 const BASE = process.env.REACT_APP_API_ENDPOINT || 'http://localhost:4000';
 
-async function getHeaders() {
-  try {
-    const session = await fetchAuthSession();
-    const token = session.tokens?.idToken?.toString();
-    return {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    };
-  } catch {
-    return { 'Content-Type': 'application/json' };
-  }
+function getHeaders() {
+  const token = localStorage.getItem('token');
+  return {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
 }
 
 async function request(method, path, body) {
-  const headers = await getHeaders();
+  const headers = getHeaders();
   const res = await fetch(`${BASE}${path}`, {
     method,
     headers,

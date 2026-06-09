@@ -1,12 +1,14 @@
 'use strict';
-const express    = require('express');
-const cors       = require('cors');
-const { Pool }   = require('pg');
-const jwt        = require('jsonwebtoken');
-const jwksClient = require('jwks-rsa');
+require('dotenv').config({ path: require('path').resolve(__dirname, '..', '.env') });
+const express  = require('express');
+const cors     = require('cors');
+const { Pool } = require('pg');
+const jwt      = require('jsonwebtoken');
+const bcrypt   = require('bcryptjs');
 
 const app  = express();
 const PORT = process.env.PORT || 4000;
+const JWT_SECRET = process.env.JWT_SECRET || 'change-me-in-production';
 
 // ── DB pool ───────────────────────────────────────────────────
 const pool = new Pool({
@@ -22,36 +24,69 @@ const pool = new Pool({
 
 pool.on('error', (err) => console.error('PG pool error:', err));
 
-// ── Cognito JWT verification ──────────────────────────────────
-const REGION      = process.env.AWS_REGION        || 'us-east-1';
-const USER_POOL   = process.env.COGNITO_USER_POOL  || '';
-const JWKS_URI    = `https://cognito-idp.${REGION}.amazonaws.com/${USER_POOL}/.well-known/jwks.json`;
-
-const jwks = jwksClient({ jwksUri: JWKS_URI, cache: true, rateLimit: true });
-
-function getKey(header, callback) {
-  jwks.getSigningKey(header.kid, (err, key) => {
-    if (err) return callback(err);
-    callback(null, key.getPublicKey());
-  });
-}
-
+// ── JWT auth middleware ───────────────────────────────────────
 function authMiddleware(req, res, next) {
-  // In dev with no pool set, skip auth
-  if (!USER_POOL) return next();
-  const authHeader = req.headers.authorization || '';
-  const token = authHeader.replace('Bearer ', '');
+  if (process.env.REACT_APP_LOCAL_DEV === 'true') return next();
+  const token = (req.headers.authorization || '').replace('Bearer ', '');
   if (!token) return res.status(401).json({ message: 'No token provided' });
-
-  jwt.verify(token, getKey, { algorithms: ['RS256'] }, (err, decoded) => {
-    if (err) return res.status(401).json({ message: 'Invalid token' });
-    req.user = decoded;
+  try {
+    req.user = jwt.verify(token, JWT_SECRET);
     next();
-  });
+  } catch {
+    res.status(401).json({ message: 'Invalid token' });
+  }
 }
 
 app.use(cors({ origin: process.env.FRONTEND_URL || '*' }));
 app.use(express.json());
+
+// ── Auth routes (public) ──────────────────────────────────────
+app.post('/auth/register', async (req, res) => {
+  const { name, email, password } = req.body;
+  if (!name || !email || !password)
+    return res.status(400).json({ message: 'name, email, and password are required' });
+  try {
+    const hash = await bcrypt.hash(password, 10);
+    const { rows } = await pool.query(
+      `INSERT INTO users (name, email, password_hash) VALUES ($1, $2, $3)
+       RETURNING id, name, email, created_at`,
+      [name, email, hash]
+    );
+    const user = rows[0];
+    const token = jwt.sign({ sub: user.id, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: '7d' });
+    res.status(201).json({ token, user });
+  } catch (e) {
+    if (e.code === '23505') return res.status(409).json({ message: 'Email already registered' });
+    res.status(500).json({ message: e.message });
+  }
+});
+
+app.post('/auth/login', async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password)
+    return res.status(400).json({ message: 'email and password are required' });
+  try {
+    const { rows } = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    const user = rows[0];
+    if (!user || !(await bcrypt.compare(password, user.password_hash)))
+      return res.status(401).json({ message: 'Invalid email or password' });
+    const token = jwt.sign({ sub: user.id, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: '7d' });
+    res.json({ token, user: { id: user.id, name: user.name, email: user.email } });
+  } catch (e) {
+    res.status(500).json({ message: e.message });
+  }
+});
+
+// ── Health check (public) ────────────────────────────────────
+app.get('/health', async (req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    res.json({ status: 'ok', db: 'connected' });
+  } catch (e) {
+    res.status(500).json({ status: 'error', db: e.message });
+  }
+});
+
 app.use(authMiddleware);
 
 // ── Escalation calculation helper ────────────────────────────
@@ -276,15 +311,7 @@ app.get('/api/projects/:projectId/dashboard', async (req, res) => {
   } catch (e) { res.status(500).json({ message: e.message }); }
 });
 
-// ── Health check ─────────────────────────────────────────────
-app.get('/health', async (req, res) => {
-  try {
-    await pool.query('SELECT 1');
-    res.json({ status: 'ok', db: 'connected' });
-  } catch (e) {
-    res.status(500).json({ status: 'error', db: e.message });
-  }
-});
-
-app.listen(PORT, () => console.log(`Melina API listening on port ${PORT}`));
+if (require.main === module) {
+  app.listen(PORT, () => console.log(`Melina API listening on port ${PORT}`));
+}
 module.exports = app;
