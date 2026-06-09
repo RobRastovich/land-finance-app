@@ -58,7 +58,7 @@ DB_NAME=melina
 DB_USER=melina_user
 DB_PASSWORD=your-password
 COGNITO_USER_POOL=us-east-1_XXXXXXXXX
-AWS_REGION=us-east-1
+APP_REGION=us-east-1
 FRONTEND_URL=https://your-amplify-app.amplifyapp.com
 PORT=4000
 ```
@@ -77,7 +77,7 @@ PORT=4000
 ```
 REACT_APP_USER_POOL_ID         = us-east-1_XXXXXXXXX
 REACT_APP_USER_POOL_CLIENT_ID  = XXXXXXXXXXXXXXXXXXXXXXXXXX
-REACT_APP_AWS_REGION           = us-east-1
+REACT_APP_REGION           = us-east-1
 REACT_APP_API_ENDPOINT         = https://your-api-gateway-url/prod
 ```
 

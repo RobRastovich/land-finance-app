@@ -5,7 +5,7 @@ frameworkVersion: '3'
 provider:
   name: aws
   runtime: nodejs18.x
-  region: ${env:AWS_REGION, 'us-east-1'}
+  region: ${env:APP_REGION, 'us-east-1'}
   stage: ${opt:stage, 'prod'}
   environment:
     DB_HOST: ${env:DB_HOST}
@@ -15,7 +15,7 @@ provider:
     DB_PASSWORD: ${env:DB_PASSWORD}
     DB_SSL: ${env:DB_SSL, 'true'}
     JWT_SECRET: ${env:JWT_SECRET}
-    AWS_REGION: ${env:AWS_REGION, 'us-east-1'}
+    APP_REGION: ${env:APP_REGION, 'us-east-1'}
     FRONTEND_URL: ${env:FRONTEND_URL, '*'}
   vpc:
     securityGroupIds:

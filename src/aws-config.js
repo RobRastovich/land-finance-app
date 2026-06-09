@@ -24,7 +24,7 @@ const awsConfig = {
     REST: {
       MelinaAPI: {
         endpoint: process.env.REACT_APP_API_ENDPOINT || 'http://localhost:4000',
-        region: process.env.REACT_APP_AWS_REGION || 'us-east-1',
+        region: process.env.REACT_APP_REGION || 'us-east-1',
       },
     },
   },
