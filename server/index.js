@@ -290,7 +290,10 @@ app.post('/api/projects/:projectId/contracts', async (req, res) => {
        total_qty, escalator_rate, escalator_start || '2027-01-01', em_pct, notes]
     );
     res.status(201).json(rows[0]);
-  } catch (e) { res.status(500).json({ message: e.message }); }
+  } catch (e) {
+    if (e.code === '23505') return res.status(409).json({ message: 'A contract for this builder and lot size already exists.' });
+    res.status(500).json({ message: e.message });
+  }
 });
 
 app.put('/api/contracts/:id', async (req, res) => {
