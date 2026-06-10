@@ -18,21 +18,9 @@ provider:
     APP_REGION: ${env:APP_REGION, 'us-east-1'}
     FRONTEND_URL: ${env:FRONTEND_URL, '*'}
     S3_DOCUMENTS_BUCKET: ${env:S3_DOCUMENTS_BUCKET, 'acres-documents'}
-  vpc:
-    securityGroupIds:
-      - ${env:LAMBDA_SG_ID}
-    subnetIds:
-      - ${env:SUBNET_ID_1}
-      - ${env:SUBNET_ID_2}
   iam:
     role:
       statements:
-        - Effect: Allow
-          Action:
-            - ec2:CreateNetworkInterface
-            - ec2:DescribeNetworkInterfaces
-            - ec2:DeleteNetworkInterface
-          Resource: '*'
         - Effect: Allow
           Action:
             - s3:PutObject
@@ -42,6 +30,16 @@ provider:
           Resource:
             - arn:aws:s3:::${env:S3_DOCUMENTS_BUCKET, 'acres-documents'}
             - arn:aws:s3:::${env:S3_DOCUMENTS_BUCKET, 'acres-documents'}/*
+
+package:
+  patterns:
+    - '!node_modules/**'
+    - '!src/**'
+    - '!public/**'
+    - '!build/**'
+    - '!database/**'
+    - '!.env*'
+    - 'server/**'
 
 functions:
   api:
