@@ -80,19 +80,26 @@ function UpcomingRow({ tranche, contract, builder, urgency }) {
 }
 
 export default function Dashboard() {
-  const { contracts, builders } = useApp();
+  const { contracts, builders, projectId } = useApp();
   const [window, setWindow] = useState(90);
   const [allTranches, setAllTranches] = useState([]);
+  const [payments, setPayments] = useState([]);
   const [loadingTranches, setLoadingTranches] = useState(false);
 
   // Load all tranches for all contracts
   useEffect(() => {
     if (!contracts.length) return;
     setLoadingTranches(true);
-    Promise.all(contracts.map(c => api.getTranches(c.id).then(t => t.map(tr => ({ ...tr, contract_id: c.id })))))
-      .then(results => setAllTranches(results.flat()))
+    Promise.all([
+      Promise.all(contracts.map(c => api.getTranches(c.id).then(t => t.map(tr => ({ ...tr, contract_id: c.id }))))),
+      api.getPayments(projectId)
+    ])
+      .then(([trancheResults, paymentResults]) => {
+        setAllTranches(trancheResults.flat());
+        setPayments(paymentResults);
+      })
       .finally(() => setLoadingTranches(false));
-  }, [contracts]);
+  }, [contracts, projectId]);
 
   const today = new Date();
   const windowEnd = addDays(today, window);
@@ -101,16 +108,37 @@ export default function Dashboard() {
   const contractMap = Object.fromEntries(contracts.map(c => [c.id, c]));
   const builderMap  = Object.fromEntries(builders.map(b => [b.id, b]));
 
-  // Upcoming tranches in window
+  // Calculate total payments per tranche
+  const tranchePaymentTotals = payments.reduce((acc, p) => {
+    if (p.tranche_id) {
+      acc[p.tranche_id] = (acc[p.tranche_id] || 0) + parseFloat(p.amount_received || 0);
+    }
+    return acc;
+  }, {});
+
+  // Check if a tranche is fully paid
+  const isTrancheFullyPaid = (tranche) => {
+    const contract = contractMap[tranche.contract_id];
+    if (!contract) return false;
+    const calc = calcTranche(contract, tranche);
+    const totalPaid = tranchePaymentTotals[tranche.id] || 0;
+    return totalPaid >= calc.projected_revenue;
+  };
+
+  // Upcoming tranches in window (excluding fully paid)
   const upcoming = allTranches
     .filter(tr => {
+      if (isTrancheFullyPaid(tr)) return false;
       const d = parseISO(tr.scheduled_date);
       return isWithinInterval(d, { start: addDays(today, -1), end: windowEnd });
     })
     .sort((a, b) => parseISO(a.scheduled_date) - parseISO(b.scheduled_date));
 
   const overdue = allTranches
-    .filter(tr => isPast(parseISO(tr.scheduled_date)) && !isToday(parseISO(tr.scheduled_date)))
+    .filter(tr => {
+      if (isTrancheFullyPaid(tr)) return false;
+      return isPast(parseISO(tr.scheduled_date)) && !isToday(parseISO(tr.scheduled_date));
+    })
     .sort((a, b) => parseISO(a.scheduled_date) - parseISO(b.scheduled_date));
 
   function getUrgency(dateStr) {

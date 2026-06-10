@@ -89,11 +89,16 @@ function BuilderForm({ initial, onSave, onClose }) {
 
 // ── Contract Form ────────────────────────────────────────────
 function ContractForm({ initial, builders, onSave, onClose }) {
-  const [form, setForm] = useState(initial || {
-    builder_id: builders[0]?.id || '',
-    lot_size_label: '60s', ff_width: 60, ff_price: 2500,
-    total_qty: 0, escalator_rate: 0, escalator_start: '2027-01-01',
-    em_pct: 0.10, notes: '',
+  const [form, setForm] = useState({
+    builder_id: initial?.builder_id || builders[0]?.id || '',
+    lot_size_label: initial?.lot_size_label || '60s',
+    ff_width: initial?.ff_width || 60,
+    ff_price: initial?.ff_price || 2500,
+    total_qty: initial?.total_qty || 0,
+    escalator_rate: initial?.escalator_rate || 0,
+    escalator_start: initial?.escalator_start || '2027-01-01',
+    em_pct: initial?.em_pct || 0.10,
+    notes: initial?.notes || '',
   });
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
   const lotPrice = parseFloat(form.ff_width || 0) * parseFloat(form.ff_price || 0);
@@ -136,18 +141,39 @@ function ContractForm({ initial, builders, onSave, onClose }) {
 }
 
 // ── Tranche Form ─────────────────────────────────────────────
-function TrancheForm({ initial, contract, onSave, onClose }) {
+function TrancheForm({ initial, contract, existingTranches, onSave, onClose }) {
   const [form, setForm] = useState(initial || { scheduled_date: '', lot_count: '', notes: '' });
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
   const preview = form.scheduled_date && form.lot_count
     ? calcTranche(contract, { scheduled_date: form.scheduled_date, lot_count: parseInt(form.lot_count) })
     : null;
 
+  // Calculate remaining lots available
+  const usedLots = existingTranches.reduce((sum, t) => sum + parseInt(t.lot_count, 10), 0);
+  const currentTrancheLots = initial ? parseInt(initial.lot_count, 10) : 0;
+  const remainingLots = parseInt(contract.total_qty, 10) - usedLots + currentTrancheLots;
+  const proposedLots = parseInt(form.lot_count, 10) || 0;
+  const exceedsLimit = proposedLots > remainingLots;
+
   return (
-    <form onSubmit={e => { e.preventDefault(); onSave(form); }} className="space-y-4">
+    <form onSubmit={e => { e.preventDefault(); if (exceedsLimit) { alert(`Cannot exceed ${remainingLots} remaining lots`); return; } onSave(form); }} className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <Input label="Takedown Date *" value={form.scheduled_date} onChange={set('scheduled_date')} type="date" required />
-        <Input label="Lot Count *" value={form.lot_count} onChange={set('lot_count')} type="number" min="1" required />
+        <div>
+          <label className="block">
+            <span className="text-xs font-medium text-gray-600 mb-1 block">Lot Count *</span>
+            <input
+              className={`w-full border ${exceedsLimit ? 'border-red-500' : 'border-gray-300'} rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 ${exceedsLimit ? 'focus:ring-red-500' : 'focus:ring-blue-500'} focus:border-transparent`}
+              value={form.lot_count}
+              onChange={set('lot_count')}
+              type="number"
+              min="1"
+              max={remainingLots}
+              required
+            />
+            <span className="text-xs text-gray-500 mt-1 block">{remainingLots} lots remaining on contract</span>
+          </label>
+        </div>
       </div>
       {preview && (
         <div className="grid grid-cols-3 gap-3 bg-blue-50 rounded-lg p-3">
@@ -315,6 +341,7 @@ function ContractCard({ contract, builders, onEditContract, onDeleteContract, on
           <TrancheForm
             initial={editTranche}
             contract={contract}
+            existingTranches={tranches}
             onSave={saveTranche}
             onClose={() => { setShowTrancheForm(false); setEditTranche(null); }}
           />

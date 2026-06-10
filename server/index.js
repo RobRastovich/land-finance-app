@@ -94,7 +94,7 @@ app.post('/auth/login', async (req, res) => {
   if (!email || !password)
     return res.status(400).json({ message: 'email and password are required' });
   try {
-    const { rows } = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    const { rows } = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1)', [email]);
     const user = rows[0];
     if (!user || !(await bcrypt.compare(password, user.password_hash)))
       return res.status(401).json({ message: 'Invalid email or password' });
@@ -110,7 +110,7 @@ app.post('/auth/forgot-password', async (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ message: 'email is required' });
   try {
-    const { rows } = await pool.query('SELECT id, email FROM users WHERE email = $1', [email]);
+    const { rows } = await pool.query('SELECT id, email FROM users WHERE LOWER(email) = LOWER($1)', [email]);
     if (rows.length === 0) {
       // Don't reveal whether email exists
       return res.json({ message: 'If that email is registered, a reset token has been generated.' });

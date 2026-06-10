@@ -20,11 +20,12 @@ const PAYMENT_TYPES = [
 export default function Payments() {
   const { projectId, contracts } = useApp();
   const [payments, setPayments] = useState([]);
+  const [tranches, setTranches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({
-    contract_id: '', payment_type: 'lot_purchase', amount_expected: '',
+    contract_id: '', tranche_id: '', payment_type: 'lot_purchase', amount_expected: '',
     amount_received: '', due_date: '', received_date: '', status: 'pending',
     reference_num: '', notes: '',
   });
@@ -35,15 +36,20 @@ export default function Payments() {
     try {
       const data = await api.getPayments(projectId);
       setPayments(data);
+      // Load all tranches for all contracts
+      const allTranches = await Promise.all(
+        contracts.map(c => api.getTranches(c.id).then(ts => ts.map(t => ({ ...t, contract_id: c.id }))))
+      );
+      setTranches(allTranches.flat());
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
-  }, [projectId]);
+  }, [projectId, contracts]);
 
   useEffect(() => { load(); }, [load]);
 
   function resetForm() {
     setForm({
-      contract_id: '', payment_type: 'lot_purchase', amount_expected: '',
+      contract_id: '', tranche_id: '', payment_type: 'lot_purchase', amount_expected: '',
       amount_received: '', due_date: '', received_date: '', status: 'pending',
       reference_num: '', notes: '',
     });
@@ -67,6 +73,7 @@ export default function Payments() {
           ...form,
           amount_expected: parseFloat(form.amount_expected),
           amount_received: parseFloat(form.amount_received) || 0,
+          tranche_id: form.tranche_id || null,
         });
       }
       resetForm();
@@ -77,6 +84,7 @@ export default function Payments() {
   function editPayment(p) {
     setForm({
       contract_id: p.contract_id,
+      tranche_id: p.tranche_id || '',
       payment_type: p.payment_type,
       amount_expected: p.amount_expected,
       amount_received: p.amount_received || '',
@@ -100,6 +108,11 @@ export default function Payments() {
 
   const totalExpected = payments.reduce((s, p) => s + parseFloat(p.amount_expected || 0), 0);
   const totalReceived = payments.reduce((s, p) => s + parseFloat(p.amount_received || 0), 0);
+
+  // Filter tranches by selected contract
+  const contractTranches = form.contract_id
+    ? tranches.filter(t => t.contract_id === form.contract_id)
+    : [];
 
   if (loading) return <div className="text-gray-400 p-8">Loading payments...</div>;
 
@@ -149,7 +162,7 @@ export default function Payments() {
                   <label className="block text-xs font-medium text-gray-600 mb-1">Contract *</label>
                   <select
                     value={form.contract_id}
-                    onChange={(e) => setForm(f => ({ ...f, contract_id: e.target.value }))}
+                    onChange={(e) => setForm(f => ({ ...f, contract_id: e.target.value, tranche_id: '' }))}
                     required
                     className="w-full px-3 py-2 border rounded-lg text-sm"
                   >
@@ -157,6 +170,22 @@ export default function Payments() {
                     {contracts.map(c => (
                       <option key={c.id} value={c.id}>
                         {c.builder_name || 'Builder'} — {c.lot_size_label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Tranche (Optional)</label>
+                  <select
+                    value={form.tranche_id}
+                    onChange={(e) => setForm(f => ({ ...f, tranche_id: e.target.value }))}
+                    disabled={!form.contract_id}
+                    className="w-full px-3 py-2 border rounded-lg text-sm disabled:bg-gray-100"
+                  >
+                    <option value="">Select tranche...</option>
+                    {contractTranches.map(t => (
+                      <option key={t.id} value={t.id}>
+                        Tranche #{t.tranche_number} — {t.scheduled_date} ({t.lot_count} lots)
                       </option>
                     ))}
                   </select>
@@ -259,6 +288,7 @@ export default function Payments() {
           <thead className="bg-gray-50 border-b">
             <tr>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Builder</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Tranche</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Type</th>
               <th className="text-right px-4 py-3 font-medium text-gray-600">Expected</th>
               <th className="text-right px-4 py-3 font-medium text-gray-600">Received</th>
@@ -272,6 +302,9 @@ export default function Payments() {
             {payments.map(p => (
               <tr key={p.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => editPayment(p)}>
                 <td className="px-4 py-3 font-medium text-gray-800">{p.builder_name}</td>
+                <td className="px-4 py-3 text-gray-600 text-xs">
+                  {p.tranche_number ? `#${p.tranche_number} — ${p.tranche_date?.slice(0, 10)}` : '—'}
+                </td>
                 <td className="px-4 py-3 text-gray-600 capitalize">{p.payment_type.replace('_', ' ')}</td>
                 <td className="px-4 py-3 text-right font-mono">{fmt(p.amount_expected)}</td>
                 <td className="px-4 py-3 text-right font-mono text-green-600">{fmt(p.amount_received)}</td>
@@ -293,7 +326,7 @@ export default function Payments() {
               </tr>
             ))}
             {payments.length === 0 && (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">No payments recorded yet</td></tr>
+              <tr><td colSpan={9} className="px-4 py-8 text-center text-gray-400">No payments recorded yet</td></tr>
             )}
           </tbody>
         </table>
