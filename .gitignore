@@ -9,6 +9,7 @@ server/node_modules/
 
 # build output
 build/
+.serverless/
 
 # misc
 .DS_Store
