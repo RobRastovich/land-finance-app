@@ -12,7 +12,7 @@ const app  = express();
 const PORT = process.env.PORT || 4000;
 const JWT_SECRET = process.env.JWT_SECRET || 'change-me-in-production';
 const S3_BUCKET = process.env.S3_DOCUMENTS_BUCKET || 'acres-documents';
-const s3 = new S3Client({ region: process.env.APP_REGION || 'us-east-1' });
+const s3 = new S3Client({ region: process.env.S3_REGION || process.env.APP_REGION || 'us-east-1' });
 
 // ── DB pool ───────────────────────────────────────────────────
 const pool = new Pool({

@@ -18,6 +18,7 @@ provider:
     APP_REGION: ${env:APP_REGION, 'us-east-1'}
     FRONTEND_URL: ${env:FRONTEND_URL, '*'}
     S3_DOCUMENTS_BUCKET: ${env:S3_DOCUMENTS_BUCKET, 'acres-documents'}
+    S3_REGION: ${env:S3_REGION, 'us-west-2'}
   iam:
     role:
       statements:
