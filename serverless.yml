@@ -17,6 +17,7 @@ provider:
     JWT_SECRET: ${env:JWT_SECRET}
     APP_REGION: ${env:APP_REGION, 'us-east-1'}
     FRONTEND_URL: ${env:FRONTEND_URL, '*'}
+    S3_DOCUMENTS_BUCKET: ${env:S3_DOCUMENTS_BUCKET, 'acres-documents'}
   vpc:
     securityGroupIds:
       - ${env:LAMBDA_SG_ID}
@@ -32,6 +33,15 @@ provider:
             - ec2:DescribeNetworkInterfaces
             - ec2:DeleteNetworkInterface
           Resource: '*'
+        - Effect: Allow
+          Action:
+            - s3:PutObject
+            - s3:GetObject
+            - s3:DeleteObject
+            - s3:ListBucket
+          Resource:
+            - arn:aws:s3:::${env:S3_DOCUMENTS_BUCKET, 'acres-documents'}
+            - arn:aws:s3:::${env:S3_DOCUMENTS_BUCKET, 'acres-documents'}/*
 
 functions:
   api:

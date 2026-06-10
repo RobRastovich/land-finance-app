@@ -5,10 +5,14 @@ const cors     = require('cors');
 const { Pool } = require('pg');
 const jwt      = require('jsonwebtoken');
 const bcrypt   = require('bcryptjs');
+const { S3Client, PutObjectCommand, ListObjectsV2Command, GetObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 
 const app  = express();
 const PORT = process.env.PORT || 4000;
 const JWT_SECRET = process.env.JWT_SECRET || 'change-me-in-production';
+const S3_BUCKET = process.env.S3_DOCUMENTS_BUCKET || 'acres-documents';
+const s3 = new S3Client({ region: process.env.APP_REGION || 'us-east-1' });
 
 // ── DB pool ───────────────────────────────────────────────────
 const pool = new Pool({
@@ -630,6 +634,74 @@ app.get('/api/my/communities', authMiddleware, async (req, res) => {
       [req.user.sub]
     );
     res.json(rows);
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
+// ── Routes: Documents (S3) ──────────────────────────────────────
+// Get presigned upload URL
+app.post('/api/projects/:id/documents/upload-url', authMiddleware, async (req, res) => {
+  const { filename, content_type } = req.body;
+  if (!filename) return res.status(400).json({ message: 'filename is required' });
+  try {
+    // Get project name for folder path
+    const { rows } = await pool.query('SELECT name FROM projects WHERE id = $1', [req.params.id]);
+    if (rows.length === 0) return res.status(404).json({ message: 'Project not found' });
+    const folderName = rows[0].name.replace(/[^a-zA-Z0-9-_ ]/g, '').replace(/\s+/g, '-');
+    const key = `${folderName}/${filename}`;
+
+    const command = new PutObjectCommand({
+      Bucket: S3_BUCKET,
+      Key: key,
+      ContentType: content_type || 'application/octet-stream',
+    });
+    const uploadUrl = await getSignedUrl(s3, command, { expiresIn: 300 });
+    res.json({ uploadUrl, key });
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
+// List documents for a project
+app.get('/api/projects/:id/documents', authMiddleware, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT name FROM projects WHERE id = $1', [req.params.id]);
+    if (rows.length === 0) return res.status(404).json({ message: 'Project not found' });
+    const folderName = rows[0].name.replace(/[^a-zA-Z0-9-_ ]/g, '').replace(/\s+/g, '-');
+
+    const command = new ListObjectsV2Command({
+      Bucket: S3_BUCKET,
+      Prefix: `${folderName}/`,
+    });
+    const response = await s3.send(command);
+    const files = (response.Contents || [])
+      .filter(obj => obj.Key !== `${folderName}/`)
+      .map(obj => ({
+        key: obj.Key,
+        name: obj.Key.replace(`${folderName}/`, ''),
+        size: obj.Size,
+        lastModified: obj.LastModified,
+      }));
+    res.json(files);
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
+// Get presigned download URL
+app.post('/api/projects/:id/documents/download-url', authMiddleware, async (req, res) => {
+  const { key } = req.body;
+  if (!key) return res.status(400).json({ message: 'key is required' });
+  try {
+    const command = new GetObjectCommand({ Bucket: S3_BUCKET, Key: key });
+    const downloadUrl = await getSignedUrl(s3, command, { expiresIn: 3600 });
+    res.json({ downloadUrl });
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
+// Delete document (admin only)
+app.delete('/api/projects/:id/documents', authMiddleware, adminOnly, async (req, res) => {
+  const { key } = req.body;
+  if (!key) return res.status(400).json({ message: 'key is required' });
+  try {
+    const command = new DeleteObjectCommand({ Bucket: S3_BUCKET, Key: key });
+    await s3.send(command);
+    res.json({ success: true });
   } catch (e) { res.status(500).json({ message: e.message }); }
 });
 

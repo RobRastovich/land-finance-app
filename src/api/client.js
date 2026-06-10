@@ -98,6 +98,16 @@ export const deleteExpense = (id) =>
 export const getPnL = (projectId) =>
   request('GET', `/api/projects/${projectId}/pnl`);
 
+// ── Documents ────────────────────────────────────────────────
+export const getDocuments = (projectId) =>
+  request('GET', `/api/projects/${projectId}/documents`);
+export const getUploadUrl = (projectId, filename, contentType) =>
+  request('POST', `/api/projects/${projectId}/documents/upload-url`, { filename, content_type: contentType });
+export const getDownloadUrl = (projectId, key) =>
+  request('POST', `/api/projects/${projectId}/documents/download-url`, { key });
+export const deleteDocument = (projectId, key) =>
+  request('DELETE', `/api/projects/${projectId}/documents`, { key });
+
 // ── Users (admin) ────────────────────────────────────────────
 export const getUsers = () => request('GET', '/api/users');
 export const updateUser = (id, data) => request('PUT', `/api/users/${id}`, data);

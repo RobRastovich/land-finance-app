@@ -8,6 +8,7 @@ import BuilderManager from './pages/BuilderManager';
 import CashFlow from './pages/CashFlow';
 import Payments from './pages/Payments';
 import ProfitLoss from './pages/ProfitLoss';
+import Documents from './pages/Documents';
 import Login from './pages/Login';
 import NewCommunity from './pages/NewCommunity';
 import Users from './pages/Users';
@@ -71,6 +72,7 @@ export default function App() {
             <Route path="cashflow"  element={<CashFlow />} />
             <Route path="payments"  element={<Payments />} />
             <Route path="pnl"       element={<ProfitLoss />} />
+            <Route path="documents" element={<Documents />} />
           </Route>
           <Route path="*" element={<DefaultRedirect />} />
         </Routes>
