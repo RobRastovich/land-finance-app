@@ -35,6 +35,7 @@ export const resetPassword = (token, newPassword) =>
 // ── Projects ─────────────────────────────────────────────────
 export const getProjects = () => request('GET', '/api/projects');
 export const createProject = (data) => request('POST', '/api/projects', data);
+export const deleteProject = (id) => request('DELETE', `/api/projects/${id}`);
 
 // ── Builders ─────────────────────────────────────────────────
 export const getBuilders = (projectId) =>
@@ -56,6 +57,13 @@ export const updateContract = (id, data) =>
 export const deleteContract = (id) =>
   request('DELETE', `/api/contracts/${id}`);
 
+export const duplicateContract = (id) =>
+  request('POST', `/api/contracts/${id}/duplicate`);
+
+// ── Duplicate Community ───────────────────────────────────────
+export const duplicateProject = (id, data) =>
+  request('POST', `/api/projects/${id}/duplicate`, data);
+
 // ── Tranches ─────────────────────────────────────────────────
 export const getTranches = (contractId) =>
   request('GET', `/api/contracts/${contractId}/tranches`);
@@ -65,6 +73,8 @@ export const updateTranche = (id, data) =>
   request('PUT', `/api/tranches/${id}`, data);
 export const deleteTranche = (id) =>
   request('DELETE', `/api/tranches/${id}`);
+export const duplicateTranche = (id) =>
+  request('POST', `/api/tranches/${id}/duplicate`);
 
 // ── Dashboard ────────────────────────────────────────────────
 export const getDashboard = (projectId, days = 90) =>

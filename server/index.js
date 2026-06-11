@@ -220,6 +220,87 @@ app.post('/api/projects', async (req, res) => {
   } catch (e) { res.status(500).json({ message: e.message }); }
 });
 
+// Duplicate a community (copies builders + contracts + tranches only)
+app.post('/api/projects/:id/duplicate', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Get original project
+    const { rows: [original] } = await client.query('SELECT * FROM projects WHERE id=$1', [req.params.id]);
+    if (!original) { await client.query('ROLLBACK'); return res.status(404).json({ message: 'Community not found' }); }
+
+    // Create new project with " (Copy)" appended
+    const newName = req.body.name || (original.name + ' (Copy)');
+    const { rows: [newProject] } = await client.query(
+      `INSERT INTO projects (name, description) VALUES ($1, $2) RETURNING *`,
+      [newName, original.description]
+    );
+
+    // Copy builders (map old IDs to new IDs)
+    const { rows: oldBuilders } = await client.query(
+      'SELECT * FROM builders WHERE project_id=$1 ORDER BY name', [req.params.id]
+    );
+    const builderMap = {}; // old_id -> new_id
+    for (const b of oldBuilders) {
+      const { rows: [newBuilder] } = await client.query(
+        `INSERT INTO builders (project_id, name, contact_name, contact_email, contact_phone, notes)
+         VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+        [newProject.id, b.name, b.contact_name, b.contact_email, b.contact_phone, b.notes]
+      );
+      builderMap[b.id] = newBuilder.id;
+    }
+
+    // Copy contracts (using new builder IDs)
+    const { rows: oldContracts } = await client.query(
+      'SELECT * FROM lot_contracts WHERE project_id=$1', [req.params.id]
+    );
+    for (const c of oldContracts) {
+      const newBuilderId = builderMap[c.builder_id];
+      if (!newBuilderId) continue; // skip if builder wasn't copied
+
+      const { rows: [newContract] } = await client.query(
+        `INSERT INTO lot_contracts
+           (project_id, builder_id, lot_size_label, ff_width, ff_price, total_qty,
+            escalator_rate, escalator_start, em_pct, notes)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+        [newProject.id, newBuilderId, c.lot_size_label, c.ff_width, c.ff_price,
+         c.total_qty, c.escalator_rate, c.escalator_start, c.em_pct, c.notes]
+      );
+
+      // Copy tranches for this contract
+      const { rows: oldTranches } = await client.query(
+        'SELECT * FROM tranches WHERE contract_id=$1 ORDER BY tranche_number', [c.id]
+      );
+      for (const t of oldTranches) {
+        const { rows: [newTranche] } = await client.query(
+          `INSERT INTO tranches (contract_id, tranche_number, scheduled_date, lot_count, notes)
+           VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+          [newContract.id, t.tranche_number, t.scheduled_date, t.lot_count, t.notes]
+        );
+        await recalcTranche(newTranche, newContract);
+      }
+    }
+
+    await client.query('COMMIT');
+    res.status(201).json(newProject);
+  } catch (e) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ message: e.message });
+  } finally {
+    client.release();
+  }
+});
+
+// Delete a community (and all related data via CASCADE)
+app.delete('/api/projects/:id', async (req, res) => {
+  try {
+    const { rows } = await pool.query('DELETE FROM projects WHERE id=$1 RETURNING *', [req.params.id]);
+    if (rows.length === 0) return res.status(404).json({ message: 'Community not found' });
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
 // ── Routes: Builders ─────────────────────────────────────────
 app.get('/api/projects/:projectId/builders', async (req, res) => {
   try {
@@ -323,6 +404,50 @@ app.delete('/api/contracts/:id', async (req, res) => {
   } catch (e) { res.status(500).json({ message: e.message }); }
 });
 
+// Duplicate a contract (with all its tranches)
+app.post('/api/contracts/:id/duplicate', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    // Get original contract
+    const { rows: [original] } = await client.query('SELECT * FROM lot_contracts WHERE id=$1', [req.params.id]);
+    if (!original) { await client.query('ROLLBACK'); return res.status(404).json({ message: 'Contract not found' }); }
+
+    // Create duplicate contract with " (Copy)" appended to lot_size_label
+    const { rows: [newContract] } = await client.query(
+      `INSERT INTO lot_contracts
+         (project_id, builder_id, lot_size_label, ff_width, ff_price, total_qty,
+          escalator_rate, escalator_start, em_pct, notes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+      [original.project_id, original.builder_id, original.lot_size_label + ' (Copy)',
+       original.ff_width, original.ff_price, original.total_qty,
+       original.escalator_rate, original.escalator_start, original.em_pct, original.notes]
+    );
+
+    // Duplicate all tranches
+    const { rows: tranches } = await client.query(
+      'SELECT * FROM tranches WHERE contract_id=$1 ORDER BY tranche_number', [req.params.id]
+    );
+    for (const t of tranches) {
+      const { rows: [newTranche] } = await client.query(
+        `INSERT INTO tranches (contract_id, tranche_number, scheduled_date, lot_count, notes)
+         VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+        [newContract.id, t.tranche_number, t.scheduled_date, t.lot_count, t.notes]
+      );
+      await recalcTranche(newTranche, newContract);
+    }
+
+    await client.query('COMMIT');
+    res.status(201).json(newContract);
+  } catch (e) {
+    await client.query('ROLLBACK');
+    if (e.code === '23505') return res.status(409).json({ message: 'Duplicate contract already exists. Edit the copy label first.' });
+    res.status(500).json({ message: e.message });
+  } finally {
+    client.release();
+  }
+});
+
 // ── Routes: Tranches ─────────────────────────────────────────
 app.get('/api/contracts/:contractId/tranches', async (req, res) => {
   try {
@@ -377,6 +502,33 @@ app.delete('/api/tranches/:id', async (req, res) => {
   try {
     await pool.query('DELETE FROM tranches WHERE id=$1', [req.params.id]);
     res.json({ success: true });
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
+// Duplicate a single tranche
+app.post('/api/tranches/:id/duplicate', async (req, res) => {
+  try {
+    // Get original tranche
+    const { rows: [original] } = await pool.query('SELECT * FROM tranches WHERE id=$1', [req.params.id]);
+    if (!original) return res.status(404).json({ message: 'Tranche not found' });
+
+    // Get next tranche number for this contract
+    const { rows: [{ max_num }] } = await pool.query(
+      'SELECT COALESCE(MAX(tranche_number),0) as max_num FROM tranches WHERE contract_id=$1',
+      [original.contract_id]
+    );
+    const trancheNum = parseInt(max_num, 10) + 1;
+
+    const { rows } = await pool.query(
+      `INSERT INTO tranches (contract_id, tranche_number, scheduled_date, lot_count, notes)
+       VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+      [original.contract_id, trancheNum, original.scheduled_date, original.lot_count, original.notes]
+    );
+    const tranche = rows[0];
+    const { rows: [contract] } = await pool.query('SELECT * FROM lot_contracts WHERE id=$1', [original.contract_id]);
+    await recalcTranche(tranche, contract);
+    const { rows: [updated] } = await pool.query('SELECT * FROM tranches WHERE id=$1', [tranche.id]);
+    res.status(201).json(updated);
   } catch (e) { res.status(500).json({ message: e.message }); }
 });
 

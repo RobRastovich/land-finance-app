@@ -4,7 +4,7 @@ import * as api from '../api/client';
 import { calcTranche, fmtCurrency, fmtPct, fmtDate } from '../utils/calculations';
 import {
   Plus, Pencil, Trash2, ChevronDown, ChevronRight,
-  Building2, Save, X, AlertTriangle
+  Building2, Save, X, AlertTriangle, Copy
 } from 'lucide-react';
 
 // ── Reusable components ──────────────────────────────────────
@@ -203,7 +203,7 @@ function TrancheForm({ initial, contract, existingTranches, onSave, onClose }) {
 }
 
 // ── Contract Card with Tranche Sub-table ─────────────────────
-function ContractCard({ contract, builders, onEditContract, onDeleteContract, onReload }) {
+function ContractCard({ contract, builders, onEditContract, onDeleteContract, onDuplicateContract, onReload }) {
   const [open, setOpen] = useState(false);
   const [tranches, setTranches] = useState([]);
   const [loadingTranches, setLoadingTranches] = useState(false);
@@ -244,6 +244,14 @@ function ContractCard({ contract, builders, onEditContract, onDeleteContract, on
     } catch (e) { alert(e.message); }
   }
 
+  async function handleDuplicateTranche(tranche) {
+    try {
+      await api.duplicateTranche(tranche.id);
+      const updated = await api.getTranches(contract.id);
+      setTranches(updated);
+    } catch (e) { alert(e.message); }
+  }
+
   const totalRevenue = tranches.reduce((s, t) => s + calcTranche(contract, t).projected_revenue, 0);
   const totalEM      = tranches.reduce((s, t) => s + calcTranche(contract, t).projected_em, 0);
 
@@ -264,6 +272,7 @@ function ContractCard({ contract, builders, onEditContract, onDeleteContract, on
           {open && <span className="text-xs text-green-700 font-semibold ml-auto">{fmtCurrency(totalRevenue)} total · {fmtCurrency(totalEM)} EM</span>}
         </div>
         <div className="flex gap-1 ml-2" onClick={e => e.stopPropagation()}>
+          <button onClick={() => onDuplicateContract(contract)} title="Duplicate contract" className="p-1.5 rounded hover:bg-white text-gray-500 hover:text-green-600 transition"><Copy size={14} /></button>
           <button onClick={() => onEditContract(contract)} className="p-1.5 rounded hover:bg-white text-gray-500 hover:text-blue-600 transition"><Pencil size={14} /></button>
           <button onClick={() => onDeleteContract(contract)} className="p-1.5 rounded hover:bg-white text-gray-500 hover:text-red-600 transition"><Trash2 size={14} /></button>
         </div>
@@ -303,6 +312,7 @@ function ContractCard({ contract, builders, onEditContract, onDeleteContract, on
                         <td className="px-3 py-2 text-right text-amber-700">{fmtCurrency(calc.escalator_lift)}</td>
                         <td className="px-3 py-2 text-center">
                           <div className="flex gap-1 justify-center">
+                            <button onClick={() => handleDuplicateTranche(tr)} title="Duplicate tranche" className="p-1 rounded hover:bg-green-100 text-gray-400 hover:text-green-600 transition"><Copy size={12} /></button>
                             <button onClick={() => setEditTranche(tr)} className="p-1 rounded hover:bg-blue-100 text-gray-400 hover:text-blue-600 transition"><Pencil size={12} /></button>
                             <button onClick={() => setDeleteTranche(tr)} className="p-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-600 transition"><Trash2 size={12} /></button>
                           </div>
@@ -406,6 +416,13 @@ export default function BuilderManager() {
     } catch (e) { alert(e.message); }
   }
 
+  async function handleDuplicateContract(contract) {
+    try {
+      await api.duplicateContract(contract.id);
+      await reload();
+    } catch (e) { alert(e.message); }
+  }
+
   const filteredContracts = filterBuilder === 'all'
     ? contracts
     : contracts.filter(c => c.builder_id === filterBuilder);
@@ -469,6 +486,7 @@ export default function BuilderManager() {
                 builders={builders}
                 onEditContract={c => { setEditContract(c); setShowContractForm(true); }}
                 onDeleteContract={setDeleteContract}
+                onDuplicateContract={handleDuplicateContract}
                 onReload={reload}
               />
             ))

@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import * as api from '../api/client';
 import { fmtCurrency, fmtDate, calcTranche } from '../utils/calculations';
-import { Calendar, DollarSign, Building2, TrendingUp, Clock, AlertCircle } from 'lucide-react';
+import { Calendar, DollarSign, Building2, TrendingUp, Clock, AlertCircle, Copy, Trash2, X, AlertTriangle } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { parseISO, isWithinInterval, addDays, format, isPast, isToday } from 'date-fns';
 
@@ -80,11 +81,42 @@ function UpcomingRow({ tranche, contract, builder, urgency }) {
 }
 
 export default function Dashboard() {
-  const { contracts, builders, projectId } = useApp();
+  const { contracts, builders, projectId, reload } = useApp();
+  const navigate = useNavigate();
   const [window, setWindow] = useState(90);
   const [allTranches, setAllTranches] = useState([]);
   const [payments, setPayments] = useState([]);
   const [loadingTranches, setLoadingTranches] = useState(false);
+  const [duplicating, setDuplicating] = useState(false);
+  const [deleteStep, setDeleteStep] = useState(0); // 0=hidden, 1=first confirm, 2=second confirm
+  const [deleting, setDeleting] = useState(false);
+
+  async function handleDuplicateCommunity() {
+    setDuplicating(true);
+    try {
+      const newProject = await api.duplicateProject(projectId);
+      await reload();
+      navigate(`/communities/${newProject.id}/dashboard`);
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setDuplicating(false);
+    }
+  }
+
+  async function handleDeleteCommunity() {
+    setDeleting(true);
+    try {
+      await api.deleteProject(projectId);
+      await reload();
+      navigate('/communities');
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setDeleting(false);
+      setDeleteStep(0);
+    }
+  }
 
   // Load all tranches for all contracts
   useEffect(() => {
@@ -180,6 +212,75 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
+      {/* Actions row */}
+      <div className="flex justify-end gap-3">
+        <button
+          onClick={handleDuplicateCommunity}
+          disabled={duplicating}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-gray-300 text-gray-700 hover:text-green-700 hover:border-green-300 hover:bg-green-50 transition disabled:opacity-50"
+        >
+          <Copy size={15} />
+          {duplicating ? 'Duplicating...' : 'Duplicate Community'}
+        </button>
+        <button
+          onClick={() => setDeleteStep(1)}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-gray-300 text-gray-700 hover:text-red-700 hover:border-red-300 hover:bg-red-50 transition"
+        >
+          <Trash2 size={15} />
+          Delete Community
+        </button>
+      </div>
+
+      {/* Delete double-confirmation modal */}
+      {deleteStep > 0 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-red-600 to-red-700">
+              <h3 className="text-white font-semibold text-base">Delete Community</h3>
+              <button onClick={() => setDeleteStep(0)} className="text-white/70 hover:text-white"><X size={18} /></button>
+            </div>
+            <div className="p-6">
+              {deleteStep === 1 && (
+                <>
+                  <div className="flex items-start gap-3 mb-4">
+                    <AlertTriangle className="text-red-500 shrink-0 mt-0.5" size={20} />
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">Are you sure you want to delete this community?</p>
+                      <p className="text-sm text-gray-600 mt-1">This will permanently delete all builders, contracts, tranches, payments, expenses, and documents associated with this community.</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-3 justify-end">
+                    <button onClick={() => setDeleteStep(0)} className="px-4 py-2 rounded-lg border border-gray-300 text-sm hover:bg-gray-50">Cancel</button>
+                    <button onClick={() => setDeleteStep(2)} className="px-4 py-2 rounded-lg bg-red-600 text-white text-sm hover:bg-red-700">Yes, Continue</button>
+                  </div>
+                </>
+              )}
+              {deleteStep === 2 && (
+                <>
+                  <div className="flex items-start gap-3 mb-4">
+                    <AlertTriangle className="text-red-500 shrink-0 mt-0.5" size={20} />
+                    <div>
+                      <p className="text-sm font-bold text-red-700">FINAL WARNING: This action cannot be undone!</p>
+                      <p className="text-sm text-gray-600 mt-1">All data will be permanently lost. Please confirm you want to proceed with deletion.</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-3 justify-end">
+                    <button onClick={() => setDeleteStep(0)} className="px-4 py-2 rounded-lg border border-gray-300 text-sm hover:bg-gray-50">Cancel</button>
+                    <button
+                      onClick={handleDeleteCommunity}
+                      disabled={deleting}
+                      className="px-4 py-2 rounded-lg bg-red-700 text-white text-sm hover:bg-red-800 disabled:opacity-50"
+                    >
+                      {deleting ? 'Deleting...' : 'Permanently Delete'}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* KPI row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KPICard icon={DollarSign}  label="Total Project Revenue"  value={fmtCurrency(totalProjectedRevenue)} sub="All tranches, escalated" color="navy"  />
