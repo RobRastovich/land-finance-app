@@ -293,6 +293,7 @@ app.post('/api/projects/:id/duplicate', async (req, res) => {
 });
 
 // Delete a community (and all related data via CASCADE)
+// This uses CASCADE deletes in the database schema
 app.delete('/api/projects/:id', async (req, res) => {
   try {
     const { rows } = await pool.query('DELETE FROM projects WHERE id=$1 RETURNING *', [req.params.id]);
