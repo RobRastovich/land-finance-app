@@ -307,7 +307,7 @@ function ContractCard({ contract, builders, onEditContract, onDeleteContract, on
     const credits = trancheCredits[t.id] || [];
     const totalCredit = credits.reduce((sum, c) => sum + parseFloat(c.amount), 0);
     return s + calc.projected_revenue + totalCredit;
-  }, 0);
+  }, 0) + earnestMoney.reduce((s, em) => s + parseFloat(em.amount), 0);
   const totalEM      = tranches.reduce((s, t) => {
     const credits = trancheCredits[t.id] || [];
     return s + credits.reduce((sum, c) => sum + parseFloat(c.amount), 0);
@@ -343,64 +343,17 @@ function ContractCard({ contract, builders, onEditContract, onDeleteContract, on
             <div className="py-6 text-center text-sm text-gray-400">Loading take downs…</div>
           ) : (
             <>
-              {/* Earnest Money Summary */}
-              {(earnestMoney.length > 0 || showEarnestForm) && (
-                <div className="px-4 py-3 bg-green-50 border-b border-green-100">
-                  <div className="flex items-center justify-between mb-2">
-                    <div>
-                      <h4 className="text-xs font-semibold text-green-800">Earnest Money Revenue</h4>
-                      {earnestMoney.length > 0 && (
-                        <div className="text-xs text-green-600 mt-1">
-                          {earnestMoney.length} {earnestMoney.length === 1 ? 'entry' : 'entries'} • Total: {fmtCurrency(earnestMoney.reduce((sum, em) => sum + parseFloat(em.amount), 0))}
-                        </div>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => { setShowEarnestForm(true); setEditEarnest(null); }}
-                      className="text-xs text-green-700 hover:text-green-900 font-medium"
-                    >
-                      + Add
-                    </button>
-                  </div>
-                  {earnestMoney.length > 0 && (
-                    <table className="w-full text-xs mt-2">
-                      <thead>
-                        <tr className="text-green-800">
-                          <th className="text-left py-1 font-medium">Date</th>
-                          <th className="text-right py-1 font-medium">Amount</th>
-                          <th className="text-left py-1 font-medium">Notes</th>
-                          <th className="text-center py-1"></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {earnestMoney.map(em => (
-                          <tr key={em.id} className="text-green-700">
-                            <td className="py-1">{em.received_date || '-'}</td>
-                            <td className="py-1 text-right font-semibold">{fmtCurrency(em.amount)}</td>
-                            <td className="py-1">{em.notes || '-'}</td>
-                            <td className="py-1 text-center">
-                              <button onClick={() => setEditEarnest(em)} className="p-0.5 rounded hover:bg-green-200 text-green-600 hover:text-green-800 transition"><Pencil size={10} /></button>
-                              <button onClick={() => { if (window.confirm('Delete this entry?')) { api.deleteEarnestMoney(em.id).then(() => api.getEarnestMoney(contract.id).then(setEarnestMoney)); } }} className="p-0.5 rounded hover:bg-red-200 text-green-600 hover:text-red-800 transition ml-1"><Trash2 size={10} /></button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
-              )}
-
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-[#1F4E79] text-white text-xs">
-                    {['#','Date','Lots','Base $/Lot','Months Escal.','Adj $/Lot','Revenue','EM Credit','Lift $',''].map(h => (
+                    {['Type','#','Date','Lots','Base $/Lot','Months Escal.','Adj $/Lot','Revenue','EM Credit','Lift $',''].map(h => (
                       <th key={h} className="px-3 py-2 text-right first:text-left last:text-center font-medium">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {tranches.length === 0 && (
-                    <tr><td colSpan={10} className="text-center py-6 text-gray-400 italic text-xs">No take downs yet. Add one below.</td></tr>
+                  {tranches.length === 0 && earnestMoney.length === 0 && (
+                    <tr><td colSpan={11} className="text-center py-6 text-gray-400 italic text-xs">No revenue entries yet. Add one below.</td></tr>
                   )}
                   {tranches.map((tr, i) => {
                     const calc = calcTranche(contract, tr);
@@ -409,6 +362,7 @@ function ContractCard({ contract, builders, onEditContract, onDeleteContract, on
                     const totalRevenue = calc.projected_revenue + totalCredit;
                     return (
                       <tr key={tr.id} className={i % 2 === 0 ? 'bg-white' : 'bg-blue-50/40'}>
+                        <td className="px-3 py-2 text-gray-600 font-medium">Take Down</td>
                         <td className="px-3 py-2 text-gray-600">{tr.tranche_number}</td>
                         <td className="px-3 py-2 text-right">{fmtDate(tr.scheduled_date)}</td>
                         <td className="px-3 py-2 text-right">{tr.lot_count}</td>
@@ -433,9 +387,29 @@ function ContractCard({ contract, builders, onEditContract, onDeleteContract, on
                       </tr>
                     );
                   })}
-                  {tranches.length > 0 && (
+                  {earnestMoney.map((em, i) => (
+                    <tr key={em.id} className={(tranches.length + i) % 2 === 0 ? 'bg-white' : 'bg-green-50/40'}>
+                      <td className="px-3 py-2 text-green-700 font-medium">EM</td>
+                      <td className="px-3 py-2 text-gray-400">—</td>
+                      <td className="px-3 py-2 text-right">{em.received_date || '-'}</td>
+                      <td className="px-3 py-2 text-gray-400">—</td>
+                      <td className="px-3 py-2 text-gray-400">—</td>
+                      <td className="px-3 py-2 text-gray-400">—</td>
+                      <td className="px-3 py-2 text-gray-400">—</td>
+                      <td className="px-3 py-2 text-right font-semibold text-green-700">{fmtCurrency(em.amount)}</td>
+                      <td className="px-3 py-2 text-gray-400">—</td>
+                      <td className="px-3 py-2 text-gray-400">—</td>
+                      <td className="px-3 py-2 text-center">
+                        <div className="flex gap-1 justify-center">
+                          <button onClick={() => setEditEarnest(em)} className="p-1 rounded hover:bg-blue-100 text-gray-400 hover:text-blue-600 transition"><Pencil size={12} /></button>
+                          <button onClick={() => { if (window.confirm('Delete this entry?')) { api.deleteEarnestMoney(em.id).then(() => api.getEarnestMoney(contract.id).then(setEarnestMoney)); } }} className="p-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-600 transition"><Trash2 size={12} /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {(tranches.length > 0 || earnestMoney.length > 0) && (
                     <tr className="bg-blue-900 text-white text-xs font-bold">
-                      <td className="px-3 py-2" colSpan={4}>TOTALS</td>
+                      <td className="px-3 py-2" colSpan={5}>TOTALS</td>
                       <td />
                       <td />
                       <td className="px-3 py-2 text-right">{fmtCurrency(totalRevenue)}</td>
@@ -446,12 +420,18 @@ function ContractCard({ contract, builders, onEditContract, onDeleteContract, on
                   )}
                 </tbody>
               </table>
-              <div className="px-4 py-3 bg-gray-50 border-t border-gray-100">
+              <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 flex gap-3">
                 <button
                   onClick={() => { setShowTrancheForm(true); setEditTranche(null); }}
                   className="flex items-center gap-2 text-xs font-medium text-blue-700 hover:text-blue-900 transition"
                 >
                   <Plus size={14} /> Add Take Down
+                </button>
+                <button
+                  onClick={() => { setShowEarnestForm(true); setEditEarnest(null); }}
+                  className="flex items-center gap-2 text-xs font-medium text-green-700 hover:text-green-900 transition"
+                >
+                  <Plus size={14} /> Add Earnest Money
                 </button>
               </div>
             </>
