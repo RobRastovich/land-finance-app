@@ -284,15 +284,6 @@ function ContractCard({ contract, builders, onEditContract, onDeleteContract, on
     } catch (e) { alert(e.message); }
   }
 
-  async function deleteEarnestMoney(id) {
-    if (!window.confirm('Delete this earnest money entry?')) return;
-    try {
-      await api.deleteEarnestMoney(id);
-      const updated = await api.getEarnestMoney(contract.id);
-      setEarnestMoney(updated);
-    } catch (e) { alert(e.message); }
-  }
-
   async function saveTrancheCredit(amount) {
     try {
       if (!editCreditTranche) return;
@@ -311,8 +302,16 @@ function ContractCard({ contract, builders, onEditContract, onDeleteContract, on
     } catch (e) { alert(e.message); }
   }
 
-  const totalRevenue = tranches.reduce((s, t) => s + calcTranche(contract, t).projected_revenue, 0);
-  const totalEM      = tranches.reduce((s, t) => s + calcTranche(contract, t).projected_em, 0);
+  const totalRevenue = tranches.reduce((s, t) => {
+    const calc = calcTranche(contract, t);
+    const credits = trancheCredits[t.id] || [];
+    const totalCredit = credits.reduce((sum, c) => sum + parseFloat(c.amount), 0);
+    return s + calc.projected_revenue + totalCredit;
+  }, 0);
+  const totalEM      = tranches.reduce((s, t) => {
+    const credits = trancheCredits[t.id] || [];
+    return s + credits.reduce((sum, c) => sum + parseFloat(c.amount), 0);
+  }, 0);
 
   return (
     <div className="border border-gray-200 rounded-xl overflow-hidden">
@@ -360,6 +359,7 @@ function ContractCard({ contract, builders, onEditContract, onDeleteContract, on
                     const calc = calcTranche(contract, tr);
                     const credits = trancheCredits[tr.id] || [];
                     const totalCredit = credits.reduce((sum, c) => sum + parseFloat(c.amount), 0);
+                    const totalRevenue = calc.projected_revenue + totalCredit;
                     return (
                       <tr key={tr.id} className={i % 2 === 0 ? 'bg-white' : 'bg-blue-50/40'}>
                         <td className="px-3 py-2 text-gray-600">{tr.tranche_number}</td>
@@ -368,7 +368,7 @@ function ContractCard({ contract, builders, onEditContract, onDeleteContract, on
                         <td className="px-3 py-2 text-right">{fmtCurrency(calc.base_lot_price)}</td>
                         <td className="px-3 py-2 text-right">{calc.months_escalated}</td>
                         <td className="px-3 py-2 text-right">{fmtCurrency(calc.adj_lot_price, 2)}</td>
-                        <td className="px-3 py-2 text-right font-semibold text-green-700">{fmtCurrency(calc.projected_revenue)}</td>
+                        <td className="px-3 py-2 text-right font-semibold text-green-700">{fmtCurrency(totalRevenue)}</td>
                         <td className="px-3 py-2 text-right text-blue-700">
                           <div className="flex items-center justify-end gap-1">
                             <span>{fmtCurrency(totalCredit)}</span>
@@ -399,39 +399,6 @@ function ContractCard({ contract, builders, onEditContract, onDeleteContract, on
                   )}
                 </tbody>
               </table>
-
-              {/* Earnest Money Table */}
-              {earnestMoney.length > 0 && (
-                <div className="border-t border-gray-200">
-                  <div className="px-4 py-2 bg-gray-50 border-b border-gray-100">
-                    <h4 className="text-xs font-semibold text-gray-700">Earnest Money Revenue</h4>
-                  </div>
-                  <table className="w-full text-xs">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-3 py-2 text-left font-medium text-gray-600">Date</th>
-                        <th className="px-3 py-2 text-right font-medium text-gray-600">Amount</th>
-                        <th className="px-3 py-2 text-left font-medium text-gray-600">Notes</th>
-                        <th className="px-3 py-2"></th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y">
-                      {earnestMoney.map(em => (
-                        <tr key={em.id} className="hover:bg-gray-50">
-                          <td className="px-3 py-2">{em.received_date || '-'}</td>
-                          <td className="px-3 py-2 text-right font-semibold text-green-700">{fmtCurrency(em.amount)}</td>
-                          <td className="px-3 py-2 text-gray-600">{em.notes || '-'}</td>
-                          <td className="px-3 py-2 text-center">
-                            <button onClick={() => setEditEarnest(em)} className="p-1 rounded hover:bg-blue-100 text-gray-400 hover:text-blue-600 transition"><Pencil size={12} /></button>
-                            <button onClick={() => deleteEarnestMoney(em.id)} className="p-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-600 transition"><Trash2 size={12} /></button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
               <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 flex gap-3">
                 <button
                   onClick={() => { setShowTrancheForm(true); setEditTranche(null); }}
