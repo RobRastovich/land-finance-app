@@ -20,7 +20,10 @@
     "test": "react-scripts test",
     "eject": "react-scripts eject",
     "server": "node server/mock-server.js",
-    "dev": "REACT_APP_LOCAL_DEV=true react-scripts start"
+    "dev": "REACT_APP_LOCAL_DEV=true react-scripts start",
+    "sam:build": "sam build",
+    "sam:deploy": "sam deploy",
+    "sam:local": "sam local start-api"
   },
   "eslintConfig": {
     "extends": [

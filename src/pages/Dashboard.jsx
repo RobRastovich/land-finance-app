@@ -246,7 +246,7 @@ export default function Dashboard() {
                     <AlertTriangle className="text-red-500 shrink-0 mt-0.5" size={20} />
                     <div>
                       <p className="text-sm font-semibold text-gray-800">Are you sure you want to delete this community?</p>
-                      <p className="text-sm text-gray-600 mt-1">This will permanently delete all builders, contracts, tranches, payments, expenses, and documents associated with this community.</p>
+                      <p className="text-sm text-gray-600 mt-1">This will permanently delete all builders, contracts, take downs, payments, expenses, and documents associated with this community.</p>
                     </div>
                   </div>
                   <div className="flex gap-3 justify-end">
@@ -283,7 +283,7 @@ export default function Dashboard() {
 
       {/* KPI row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPICard icon={DollarSign}  label="Total Project Revenue"  value={fmtCurrency(totalProjectedRevenue)} sub="All tranches, escalated" color="navy"  />
+        <KPICard icon={DollarSign}  label="Total Project Revenue"  value={fmtCurrency(totalProjectedRevenue)} sub="All take downs, escalated" color="navy"  />
         <KPICard icon={Building2}   label="Active Builders"         value={totalBuilders}                      sub={`${contracts.length} contracts`}        color="blue"  />
         <KPICard icon={TrendingUp}  label="Total Lots"              value={totalLots}                          sub="Across all lot sizes"                    color="green" />
         <KPICard icon={Clock}       label={`Revenue Next ${window}d`} value={fmtCurrency(windowRevenue)}      sub={`${upcoming.length} takedowns`}          color="amber" />

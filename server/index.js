@@ -28,6 +28,23 @@ const pool = new Pool({
 
 pool.on('error', (err) => console.error('PG pool error:', err));
 
+// Run migrations on startup
+(async () => {
+  try {
+    await pool.query(`
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS module_permissions JSONB DEFAULT '{"dashboard":true,"builder_manager":true,"cash_flow":true,"payments":true,"pnl":true,"documents":true}'::jsonb
+    `);
+    await pool.query(`
+      UPDATE users SET module_permissions = '{"dashboard":true,"builder_manager":true,"cash_flow":true,"payments":true,"pnl":true,"documents":true}'::jsonb WHERE module_permissions IS NULL
+    `);
+    console.log('Migration: module_permissions column added/updated');
+  } catch (e) {
+    if (e.code !== '42701') { // Ignore if column already exists
+      console.error('Migration error:', e.message);
+    }
+  }
+})();
+
 // ── JWT auth middleware ───────────────────────────────────────
 function authMiddleware(req, res, next) {
   if (process.env.REACT_APP_LOCAL_DEV === 'true') {
@@ -217,6 +234,19 @@ app.post('/api/projects', async (req, res) => {
       [name, description || null]
     );
     res.status(201).json(rows[0]);
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
+app.put('/api/projects/:id', async (req, res) => {
+  const { name, description } = req.body;
+  if (!name) return res.status(400).json({ message: 'name is required' });
+  try {
+    const { rows } = await pool.query(
+      `UPDATE projects SET name = $1, description = $2 WHERE id = $3 RETURNING *`,
+      [name, description || null, req.params.id]
+    );
+    if (rows.length === 0) return res.status(404).json({ message: 'Community not found' });
+    res.json(rows[0]);
   } catch (e) { res.status(500).json({ message: e.message }); }
 });
 
@@ -720,7 +750,7 @@ app.get('/api/projects/:projectId/pnl', async (req, res) => {
 app.get('/api/users', authMiddleware, adminOnly, async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT u.id, u.name, u.email, u.role, u.created_at,
+      `SELECT u.id, u.name, u.email, u.role, u.created_at, u.module_permissions,
               COALESCE(json_agg(json_build_object('id', uc.project_id, 'name', p.name))
                 FILTER (WHERE uc.project_id IS NOT NULL), '[]') as communities
        FROM users u
@@ -734,12 +764,12 @@ app.get('/api/users', authMiddleware, adminOnly, async (req, res) => {
 });
 
 app.put('/api/users/:id', authMiddleware, adminOnly, async (req, res) => {
-  const { name, email, role } = req.body;
+  const { name, email, role, module_permissions } = req.body;
   try {
     const { rows } = await pool.query(
-      `UPDATE users SET name = COALESCE($1, name), email = COALESCE($2, email), role = COALESCE($3, role)
-       WHERE id = $4 RETURNING id, name, email, role, created_at`,
-      [name, email, role, req.params.id]
+      `UPDATE users SET name = COALESCE($1, name), email = COALESCE($2, email), role = COALESCE($3, role), module_permissions = COALESCE($4, module_permissions)
+       WHERE id = $5 RETURNING id, name, email, role, created_at, module_permissions`,
+      [name, email, role, module_permissions ? JSON.stringify(module_permissions) : null, req.params.id]
     );
     if (rows.length === 0) return res.status(404).json({ message: 'User not found' });
     res.json(rows[0]);
@@ -864,4 +894,7 @@ app.delete('/api/projects/:id/documents', authMiddleware, adminOnly, async (req,
 if (require.main === module) {
   app.listen(PORT, () => console.log(`ACREs API listening on port ${PORT}`));
 }
-module.exports = app;
+
+// Export for Lambda
+const serverless = require('serverless-http');
+module.exports.handler = serverless(app);

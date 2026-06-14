@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider } from './context/AppContext';
 import Layout from './components/Layout';
 import CommunityRoute from './components/CommunityRoute';
+import ProtectedRoute from './components/ProtectedRoute';
 import Dashboard from './pages/Dashboard';
 import BuilderManager from './pages/BuilderManager';
 import CashFlow from './pages/CashFlow';
@@ -67,12 +68,12 @@ export default function App() {
           <Route path="/users" element={<Layout signOut={signOut} user={user}><Users /></Layout>} />
           <Route path="/communities/:communityId" element={<Layout signOut={signOut} user={user}><CommunityRoute /></Layout>}>
             <Route index element={<Navigate to="dashboard" replace />} />
-            <Route path="dashboard" element={<Dashboard />} />
-            <Route path="builders"  element={<BuilderManager />} />
-            <Route path="cashflow"  element={<CashFlow />} />
-            <Route path="payments"  element={<Payments />} />
-            <Route path="pnl"       element={<ProfitLoss />} />
-            <Route path="documents" element={<Documents />} />
+            <Route path="dashboard" element={<ProtectedRoute module="dashboard"><Dashboard /></ProtectedRoute>} />
+            <Route path="builders"  element={<ProtectedRoute module="builder_manager"><BuilderManager /></ProtectedRoute>} />
+            <Route path="cashflow"  element={<ProtectedRoute module="cash_flow"><CashFlow /></ProtectedRoute>} />
+            <Route path="payments"  element={<ProtectedRoute module="payments"><Payments /></ProtectedRoute>} />
+            <Route path="pnl"       element={<ProtectedRoute module="pnl"><ProfitLoss /></ProtectedRoute>} />
+            <Route path="documents" element={<ProtectedRoute module="documents"><Documents /></ProtectedRoute>} />
           </Route>
           <Route path="*" element={<DefaultRedirect />} />
         </Routes>

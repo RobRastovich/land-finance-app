@@ -35,6 +35,7 @@ export const resetPassword = (token, newPassword) =>
 // ── Projects ─────────────────────────────────────────────────
 export const getProjects = () => request('GET', '/api/projects');
 export const createProject = (data) => request('POST', '/api/projects', data);
+export const updateProject = (id, data) => request('PUT', `/api/projects/${id}`, data);
 export const deleteProject = (id) => request('DELETE', `/api/projects/${id}`);
 
 // ── Builders ─────────────────────────────────────────────────

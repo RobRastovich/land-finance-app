@@ -282,7 +282,7 @@ function ContractCard({ contract, builders, onEditContract, onDeleteContract, on
       {open && (
         <div className="border-t border-gray-200">
           {loadingTranches ? (
-            <div className="py-6 text-center text-sm text-gray-400">Loading tranches…</div>
+            <div className="py-6 text-center text-sm text-gray-400">Loading take downs…</div>
           ) : (
             <>
               <table className="w-full text-sm">
@@ -295,7 +295,7 @@ function ContractCard({ contract, builders, onEditContract, onDeleteContract, on
                 </thead>
                 <tbody>
                   {tranches.length === 0 && (
-                    <tr><td colSpan={10} className="text-center py-6 text-gray-400 italic text-xs">No tranches yet. Add one below.</td></tr>
+                    <tr><td colSpan={10} className="text-center py-6 text-gray-400 italic text-xs">No take downs yet. Add one below.</td></tr>
                   )}
                   {tranches.map((tr, i) => {
                     const calc = calcTranche(contract, tr);
@@ -454,10 +454,10 @@ export default function BuilderManager() {
         </div>
       </div>
 
-      {/* Contracts + Tranches */}
+      {/* Contracts + Take Downs */}
       <div className="bg-white rounded-xl border border-gray-200 p-5">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="font-semibold text-gray-800">Contracts & Tranches</h2>
+          <h2 className="font-semibold text-gray-800">Contracts & Take Downs</h2>
           <div className="flex items-center gap-3">
             <select
               value={filterBuilder}
@@ -507,14 +507,14 @@ export default function BuilderManager() {
       )}
       {deleteBuilder && (
         <ConfirmDelete
-          message={`Delete ${deleteBuilder.name}? All contracts and tranches for this builder will also be deleted.`}
+          message={`Delete ${deleteBuilder.name}? All contracts and take downs for this builder will also be deleted.`}
           onConfirm={handleDeleteBuilder}
           onCancel={() => setDeleteBuilder(null)}
         />
       )}
       {deleteContract && (
         <ConfirmDelete
-          message={`Delete the ${deleteContract.lot_size_label} contract? All tranches will also be deleted.`}
+          message={`Delete the ${deleteContract.lot_size_label} contract? All take downs will also be deleted.`}
           onConfirm={handleDeleteContract}
           onCancel={() => setDeleteContract(null)}
         />

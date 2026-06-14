@@ -10,7 +10,7 @@ export default function Users() {
   const [inviteLink, setInviteLink] = useState('');
   const [copied, setCopied] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
-  const [editForm, setEditForm] = useState({ name: '', email: '', role: 'standard', communityIds: [] });
+  const [editForm, setEditForm] = useState({ name: '', email: '', role: 'standard', communityIds: [], modulePermissions: { dashboard: true, builder_manager: true, cash_flow: true, payments: true, pnl: true, documents: true } });
 
   const load = useCallback(async () => {
     if (!isAdmin) return;
@@ -47,12 +47,13 @@ export default function Users() {
       email: u.email,
       role: u.role,
       communityIds: (u.communities || []).map(c => c.id),
+      modulePermissions: u.module_permissions || { dashboard: true, builder_manager: true, cash_flow: true, payments: true, pnl: true, documents: true },
     });
   }
 
   async function saveEdit() {
     try {
-      await api.updateUser(editingUser, { name: editForm.name, email: editForm.email, role: editForm.role });
+      await api.updateUser(editingUser, { name: editForm.name, email: editForm.email, role: editForm.role, module_permissions: editForm.modulePermissions });
       await api.assignCommunities(editingUser, editForm.communityIds);
       setEditingUser(null);
       load();
@@ -71,6 +72,16 @@ export default function Users() {
       communityIds: f.communityIds.includes(projectId)
         ? f.communityIds.filter(id => id !== projectId)
         : [...f.communityIds, projectId],
+    }));
+  }
+
+  function togglePermission(module) {
+    setEditForm(f => ({
+      ...f,
+      modulePermissions: {
+        ...f.modulePermissions,
+        [module]: !f.modulePermissions[module],
+      },
     }));
   }
 
@@ -135,6 +146,7 @@ export default function Users() {
               <th className="text-left px-4 py-3 font-medium text-gray-600">Email</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Role</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Communities</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Module Permissions</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Joined</th>
               <th className="px-4 py-3"></th>
             </tr>
@@ -185,6 +197,21 @@ export default function Users() {
                         ))}
                       </div>
                     </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-col gap-1">
+                        {Object.keys(editForm.modulePermissions).map(module => (
+                          <label key={module} className="flex items-center gap-2 text-xs cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={editForm.modulePermissions[module]}
+                              onChange={() => togglePermission(module)}
+                              className="rounded"
+                            />
+                            <span className="capitalize">{module.replace('_', ' ')}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </td>
                     <td className="px-4 py-3 text-gray-500 text-xs">{u.created_at?.slice(0, 10)}</td>
                     <td className="px-4 py-3">
                       <div className="flex gap-1">
@@ -213,6 +240,15 @@ export default function Users() {
                         {(!u.communities || u.communities.length === 0) && (
                           <span className="text-xs text-gray-400">None</span>
                         )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-1">
+                        {Object.entries(u.module_permissions || {}).map(([module, enabled]) => (
+                          <span key={module} className={`px-2 py-0.5 rounded text-xs ${enabled ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-400'}`}>
+                            {module.replace('_', ' ')}
+                          </span>
+                        ))}
                       </div>
                     </td>
                     <td className="px-4 py-3 text-gray-500 text-xs">{u.created_at?.slice(0, 10)}</td>
