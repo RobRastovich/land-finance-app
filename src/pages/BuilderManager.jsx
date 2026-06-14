@@ -101,6 +101,23 @@ function ContractForm({ initial, builders, onSave, onClose }) {
     notes: initial?.notes || '',
   });
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
+
+  // When editing, ensure date is in YYYY-MM-DD format for date input
+  useEffect(() => {
+    if (initial) {
+      setForm({
+        builder_id: initial.builder_id || builders[0]?.id || '',
+        lot_size_label: initial.lot_size_label || '60s',
+        ff_width: initial.ff_width || 60,
+        ff_price: initial.ff_price || 2500,
+        total_qty: initial.total_qty || 0,
+        escalator_rate: initial.escalator_rate || 0,
+        escalator_start: initial.escalator_start ? initial.escalator_start.split('T')[0] : '2027-01-01',
+        em_pct: initial.em_pct || 0.10,
+        notes: initial.notes || '',
+      });
+    }
+  }, [initial, builders]);
   const lotPrice = parseFloat(form.ff_width || 0) * parseFloat(form.ff_price || 0);
 
   return (
@@ -143,6 +160,16 @@ function ContractForm({ initial, builders, onSave, onClose }) {
 function TrancheForm({ initial, contract, existingTranches, onSave, onClose }) {
   const [form, setForm] = useState(initial || { scheduled_date: '', lot_count: '', notes: '' });
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
+
+  // When editing, ensure date is in YYYY-MM-DD format for date input
+  useEffect(() => {
+    if (initial) {
+      setForm({
+        ...initial,
+        scheduled_date: initial.scheduled_date ? initial.scheduled_date.split('T')[0] : ''
+      });
+    }
+  }, [initial]);
   const preview = form.scheduled_date && form.lot_count
     ? calcTranche(contract, { scheduled_date: form.scheduled_date, lot_count: parseInt(form.lot_count) })
     : null;
@@ -355,13 +382,33 @@ function ContractCard({ contract, builders, onEditContract, onDeleteContract, on
                   {tranches.length === 0 && earnestMoney.length === 0 && (
                     <tr><td colSpan={11} className="text-center py-6 text-gray-400 italic text-xs">No revenue entries yet. Add one below.</td></tr>
                   )}
+                  {earnestMoney.map((em, i) => (
+                    <tr key={em.id} className={i % 2 === 0 ? 'bg-white' : 'bg-green-50/40'}>
+                      <td className="px-3 py-2 text-green-700 font-medium">EM</td>
+                      <td className="px-3 py-2 text-gray-400">—</td>
+                      <td className="px-3 py-2 text-right">{fmtDate(em.received_date)}</td>
+                      <td className="px-3 py-2 text-gray-400">—</td>
+                      <td className="px-3 py-2 text-gray-400">—</td>
+                      <td className="px-3 py-2 text-gray-400">—</td>
+                      <td className="px-3 py-2 text-gray-400">—</td>
+                      <td className="px-3 py-2 text-right font-semibold text-green-700">{fmtCurrency(em.amount)}</td>
+                      <td className="px-3 py-2 text-gray-400">—</td>
+                      <td className="px-3 py-2 text-gray-400">—</td>
+                      <td className="px-3 py-2 text-center">
+                        <div className="flex gap-1 justify-center">
+                          <button onClick={() => setEditEarnest(em)} className="p-1 rounded hover:bg-blue-100 text-gray-400 hover:text-blue-600 transition"><Pencil size={12} /></button>
+                          <button onClick={() => { if (window.confirm('Delete this entry?')) { api.deleteEarnestMoney(em.id).then(() => api.getEarnestMoney(contract.id).then(setEarnestMoney)); } }} className="p-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-600 transition"><Trash2 size={12} /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
                   {tranches.map((tr, i) => {
                     const calc = calcTranche(contract, tr);
                     const credits = trancheCredits[tr.id] || [];
                     const totalCredit = credits.reduce((sum, c) => sum + parseFloat(c.amount), 0);
                     const totalRevenue = calc.projected_revenue + totalCredit;
                     return (
-                      <tr key={tr.id} className={i % 2 === 0 ? 'bg-white' : 'bg-blue-50/40'}>
+                      <tr key={tr.id} className={(earnestMoney.length + i) % 2 === 0 ? 'bg-white' : 'bg-blue-50/40'}>
                         <td className="px-3 py-2 text-gray-600 font-medium">Take Down</td>
                         <td className="px-3 py-2 text-gray-600">{tr.tranche_number}</td>
                         <td className="px-3 py-2 text-right">{fmtDate(tr.scheduled_date)}</td>
@@ -387,26 +434,6 @@ function ContractCard({ contract, builders, onEditContract, onDeleteContract, on
                       </tr>
                     );
                   })}
-                  {earnestMoney.map((em, i) => (
-                    <tr key={em.id} className={(tranches.length + i) % 2 === 0 ? 'bg-white' : 'bg-green-50/40'}>
-                      <td className="px-3 py-2 text-green-700 font-medium">EM</td>
-                      <td className="px-3 py-2 text-gray-400">—</td>
-                      <td className="px-3 py-2 text-right">{em.received_date || '-'}</td>
-                      <td className="px-3 py-2 text-gray-400">—</td>
-                      <td className="px-3 py-2 text-gray-400">—</td>
-                      <td className="px-3 py-2 text-gray-400">—</td>
-                      <td className="px-3 py-2 text-gray-400">—</td>
-                      <td className="px-3 py-2 text-right font-semibold text-green-700">{fmtCurrency(em.amount)}</td>
-                      <td className="px-3 py-2 text-gray-400">—</td>
-                      <td className="px-3 py-2 text-gray-400">—</td>
-                      <td className="px-3 py-2 text-center">
-                        <div className="flex gap-1 justify-center">
-                          <button onClick={() => setEditEarnest(em)} className="p-1 rounded hover:bg-blue-100 text-gray-400 hover:text-blue-600 transition"><Pencil size={12} /></button>
-                          <button onClick={() => { if (window.confirm('Delete this entry?')) { api.deleteEarnestMoney(em.id).then(() => api.getEarnestMoney(contract.id).then(setEarnestMoney)); } }} className="p-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-600 transition"><Trash2 size={12} /></button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
                   {(tranches.length > 0 || earnestMoney.length > 0) && (
                     <tr className="bg-blue-900 text-white text-xs font-bold">
                       <td className="px-3 py-2" colSpan={5}>TOTALS</td>
