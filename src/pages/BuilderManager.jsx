@@ -343,6 +343,53 @@ function ContractCard({ contract, builders, onEditContract, onDeleteContract, on
             <div className="py-6 text-center text-sm text-gray-400">Loading take downs…</div>
           ) : (
             <>
+              {/* Earnest Money Summary */}
+              {(earnestMoney.length > 0 || showEarnestForm) && (
+                <div className="px-4 py-3 bg-green-50 border-b border-green-100">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <h4 className="text-xs font-semibold text-green-800">Earnest Money Revenue</h4>
+                      {earnestMoney.length > 0 && (
+                        <div className="text-xs text-green-600 mt-1">
+                          {earnestMoney.length} {earnestMoney.length === 1 ? 'entry' : 'entries'} • Total: {fmtCurrency(earnestMoney.reduce((sum, em) => sum + parseFloat(em.amount), 0))}
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => { setShowEarnestForm(true); setEditEarnest(null); }}
+                      className="text-xs text-green-700 hover:text-green-900 font-medium"
+                    >
+                      + Add
+                    </button>
+                  </div>
+                  {earnestMoney.length > 0 && (
+                    <table className="w-full text-xs mt-2">
+                      <thead>
+                        <tr className="text-green-800">
+                          <th className="text-left py-1 font-medium">Date</th>
+                          <th className="text-right py-1 font-medium">Amount</th>
+                          <th className="text-left py-1 font-medium">Notes</th>
+                          <th className="text-center py-1"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {earnestMoney.map(em => (
+                          <tr key={em.id} className="text-green-700">
+                            <td className="py-1">{em.received_date || '-'}</td>
+                            <td className="py-1 text-right font-semibold">{fmtCurrency(em.amount)}</td>
+                            <td className="py-1">{em.notes || '-'}</td>
+                            <td className="py-1 text-center">
+                              <button onClick={() => setEditEarnest(em)} className="p-0.5 rounded hover:bg-green-200 text-green-600 hover:text-green-800 transition"><Pencil size={10} /></button>
+                              <button onClick={() => { if (window.confirm('Delete this entry?')) { api.deleteEarnestMoney(em.id).then(() => api.getEarnestMoney(contract.id).then(setEarnestMoney)); } }} className="p-0.5 rounded hover:bg-red-200 text-green-600 hover:text-red-800 transition ml-1"><Trash2 size={10} /></button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              )}
+
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-[#1F4E79] text-white text-xs">
@@ -399,18 +446,12 @@ function ContractCard({ contract, builders, onEditContract, onDeleteContract, on
                   )}
                 </tbody>
               </table>
-              <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 flex gap-3">
+              <div className="px-4 py-3 bg-gray-50 border-t border-gray-100">
                 <button
                   onClick={() => { setShowTrancheForm(true); setEditTranche(null); }}
                   className="flex items-center gap-2 text-xs font-medium text-blue-700 hover:text-blue-900 transition"
                 >
                   <Plus size={14} /> Add Take Down
-                </button>
-                <button
-                  onClick={() => { setShowEarnestForm(true); setEditEarnest(null); }}
-                  className="flex items-center gap-2 text-xs font-medium text-green-700 hover:text-green-900 transition"
-                >
-                  <Plus size={14} /> Add Earnest Money
                 </button>
               </div>
             </>
