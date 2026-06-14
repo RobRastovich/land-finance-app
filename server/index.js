@@ -43,6 +43,38 @@ pool.on('error', (err) => console.error('PG pool error:', err));
       console.error('Migration error:', e.message);
     }
   }
+
+  // Create earnest_money_revenue table
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS earnest_money_revenue (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        contract_id UUID NOT NULL REFERENCES lot_contracts(id) ON DELETE CASCADE,
+        amount DECIMAL(12,2) NOT NULL,
+        received_date DATE,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('Migration: earnest_money_revenue table created');
+  } catch (e) {
+    console.error('Migration error (earnest_money_revenue):', e.message);
+  }
+
+  // Create tranche_earnest_credits table
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS tranche_earnest_credits (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        tranche_id UUID NOT NULL REFERENCES tranches(id) ON DELETE CASCADE,
+        amount DECIMAL(12,2) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('Migration: tranche_earnest_credits table created');
+  } catch (e) {
+    console.error('Migration error (tranche_earnest_credits):', e.message);
+  }
 })();
 
 // ── JWT auth middleware ───────────────────────────────────────
@@ -579,6 +611,149 @@ app.get('/api/projects/:projectId/dashboard', async (req, res) => {
       [req.params.projectId, days]
     );
     res.json(rows);
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
+// ── Routes: Earnest Money Revenue ──────────────────────────────
+app.get('/api/contracts/:contractId/earnest-money', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM earnest_money_revenue WHERE contract_id = $1 ORDER BY received_date DESC',
+      [req.params.contractId]
+    );
+    res.json(rows);
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
+app.post('/api/contracts/:contractId/earnest-money', async (req, res) => {
+  const { amount, received_date, notes } = req.body;
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO earnest_money_revenue (contract_id, amount, received_date, notes)
+       VALUES ($1, $2, $3, $4) RETURNING *`,
+      [req.params.contractId, amount, received_date, notes]
+    );
+    res.status(201).json(rows[0]);
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
+app.put('/api/earnest-money/:id', async (req, res) => {
+  const { amount, received_date, notes } = req.body;
+  try {
+    const { rows } = await pool.query(
+      `UPDATE earnest_money_revenue SET amount = COALESCE($1, amount), received_date = COALESCE($2, received_date), notes = COALESCE($3, notes)
+       WHERE id = $4 RETURNING *`,
+      [amount, received_date, notes, req.params.id]
+    );
+    if (rows.length === 0) return res.status(404).json({ message: 'Not found' });
+    res.json(rows[0]);
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
+app.delete('/api/earnest-money/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM earnest_money_revenue WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
+// ── Routes: Tranche Earnest Credits ──────────────────────────────
+app.get('/api/tranches/:trancheId/earnest-credits', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM tranche_earnest_credits WHERE tranche_id = $1 ORDER BY created_at',
+      [req.params.trancheId]
+    );
+    res.json(rows);
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
+app.post('/api/tranches/:trancheId/earnest-credits', async (req, res) => {
+  const { amount } = req.body;
+  try {
+    // Get contract_id from tranche
+    const { rows: [tranche] } = await pool.query('SELECT contract_id FROM tranches WHERE id = $1', [req.params.trancheId]);
+    if (!tranche) return res.status(404).json({ message: 'Tranche not found' });
+
+    // Calculate total earnest money for the contract
+    const { rows: [totalEM] } = await pool.query(
+      'SELECT COALESCE(SUM(amount), 0) as total FROM earnest_money_revenue WHERE contract_id = $1',
+      [tranche.contract_id]
+    );
+
+    // Calculate total credits already assigned to this tranche
+    const { rows: [currentCredits] } = await pool.query(
+      'SELECT COALESCE(SUM(amount), 0) as total FROM tranche_earnest_credits WHERE tranche_id = $1',
+      [req.params.trancheId]
+    );
+
+    // Calculate total credits assigned to all tranches for this contract
+    const { rows: [allCredits] } = await pool.query(
+      `SELECT COALESCE(SUM(tec.amount), 0) as total
+       FROM tranche_earnest_credits tec
+       JOIN tranches t ON tec.tranche_id = t.id
+       WHERE t.contract_id = $1`,
+      [tranche.contract_id]
+    );
+
+    const newTotal = parseFloat(allCredits.total) + parseFloat(amount) - parseFloat(currentCredits.total);
+    if (newTotal > parseFloat(totalEM.total)) {
+      return res.status(400).json({ message: `Cannot exceed total earnest money of ${totalEM.total}` });
+    }
+
+    const { rows } = await pool.query(
+      `INSERT INTO tranche_earnest_credits (tranche_id, amount) VALUES ($1, $2) RETURNING *`,
+      [req.params.trancheId, amount]
+    );
+    res.status(201).json(rows[0]);
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
+app.put('/api/earnest-credits/:id', async (req, res) => {
+  const { amount } = req.body;
+  try {
+    // Get tranche_id and contract_id
+    const { rows: [credit] } = await pool.query(
+      `SELECT tec.tranche_id, t.contract_id
+       FROM tranche_earnest_credits tec
+       JOIN tranches t ON tec.tranche_id = t.id
+       WHERE tec.id = $1`,
+      [req.params.id]
+    );
+    if (!credit) return res.status(404).json({ message: 'Credit not found' });
+
+    // Calculate total earnest money for the contract
+    const { rows: [totalEM] } = await pool.query(
+      'SELECT COALESCE(SUM(amount), 0) as total FROM earnest_money_revenue WHERE contract_id = $1',
+      [credit.contract_id]
+    );
+
+    // Calculate total credits assigned to all tranches for this contract (excluding this one)
+    const { rows: [allCredits] } = await pool.query(
+      `SELECT COALESCE(SUM(tec.amount), 0) as total
+       FROM tranche_earnest_credits tec
+       JOIN tranches t ON tec.tranche_id = t.id
+       WHERE t.contract_id = $1 AND tec.id != $2`,
+      [credit.contract_id, req.params.id]
+    );
+
+    const newTotal = parseFloat(allCredits.total) + parseFloat(amount);
+    if (newTotal > parseFloat(totalEM.total)) {
+      return res.status(400).json({ message: `Cannot exceed total earnest money of ${totalEM.total}` });
+    }
+
+    const { rows } = await pool.query(
+      'UPDATE tranche_earnest_credits SET amount = $1 WHERE id = $2 RETURNING *',
+      [amount, req.params.id]
+    );
+    res.json(rows[0]);
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
+app.delete('/api/earnest-credits/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM tranche_earnest_credits WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
   } catch (e) { res.status(500).json({ message: e.message }); }
 });
 

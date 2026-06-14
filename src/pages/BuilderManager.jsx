@@ -123,7 +123,6 @@ function ContractForm({ initial, builders, onSave, onClose }) {
       </div>
       <div className="grid grid-cols-2 gap-4">
         <Input label="Total Qty (Lots)" value={form.total_qty} onChange={set('total_qty')} type="number" required />
-        <Input label="Earnest Money %" value={parseFloat(form.em_pct) * 100} onChange={e => setForm(f => ({ ...f, em_pct: e.target.value / 100 }))} type="number" step="0.1" min="0" max="100" />
       </div>
       <div className="grid grid-cols-2 gap-4">
         <Input label="Escalator Rate (% per year)" value={parseFloat(form.escalator_rate) * 100} onChange={e => setForm(f => ({ ...f, escalator_rate: e.target.value / 100 }))} type="number" step="0.01" min="0" />
@@ -210,6 +209,12 @@ function ContractCard({ contract, builders, onEditContract, onDeleteContract, on
   const [showTrancheForm, setShowTrancheForm] = useState(false);
   const [editTranche, setEditTranche] = useState(null);
   const [deleteTranche, setDeleteTranche] = useState(null);
+  const [showEarnestForm, setShowEarnestForm] = useState(false);
+  const [earnestMoney, setEarnestMoney] = useState([]);
+  const [editEarnest, setEditEarnest] = useState(null);
+  const [trancheCredits, setTrancheCredits] = useState({});
+  const [editCreditTranche, setEditCreditTranche] = useState(null);
+  const [showCreditForm, setShowCreditForm] = useState(false);
 
   const builder = builders.find(b => b.id === contract.builder_id);
   const lotPrice = parseFloat(contract.ff_width) * parseFloat(contract.ff_price);
@@ -217,8 +222,21 @@ function ContractCard({ contract, builders, onEditContract, onDeleteContract, on
   useEffect(() => {
     if (!open) return;
     setLoadingTranches(true);
-    api.getTranches(contract.id)
-      .then(setTranches)
+    Promise.all([
+      api.getTranches(contract.id),
+      api.getEarnestMoney(contract.id)
+    ])
+      .then(async ([tranchesData, earnestData]) => {
+        setTranches(tranchesData);
+        setEarnestMoney(earnestData);
+        // Load earnest credits for each tranche
+        const creditsByTranche = {};
+        for (const tranche of tranchesData) {
+          const credits = await api.getTrancheEarnestCredits(tranche.id);
+          creditsByTranche[tranche.id] = credits;
+        }
+        setTrancheCredits(creditsByTranche);
+      })
       .finally(() => setLoadingTranches(false));
   }, [open, contract.id]);
 
@@ -249,6 +267,47 @@ function ContractCard({ contract, builders, onEditContract, onDeleteContract, on
       await api.duplicateTranche(tranche.id);
       const updated = await api.getTranches(contract.id);
       setTranches(updated);
+    } catch (e) { alert(e.message); }
+  }
+
+  async function saveEarnestMoney(form) {
+    try {
+      if (editEarnest) {
+        await api.updateEarnestMoney(editEarnest.id, form);
+      } else {
+        await api.createEarnestMoney(contract.id, form);
+      }
+      setShowEarnestForm(false);
+      setEditEarnest(null);
+      const updated = await api.getEarnestMoney(contract.id);
+      setEarnestMoney(updated);
+    } catch (e) { alert(e.message); }
+  }
+
+  async function deleteEarnestMoney(id) {
+    if (!window.confirm('Delete this earnest money entry?')) return;
+    try {
+      await api.deleteEarnestMoney(id);
+      const updated = await api.getEarnestMoney(contract.id);
+      setEarnestMoney(updated);
+    } catch (e) { alert(e.message); }
+  }
+
+  async function saveTrancheCredit(amount) {
+    try {
+      if (!editCreditTranche) return;
+      const credits = trancheCredits[editCreditTranche.id] || [];
+      if (credits.length > 0) {
+        // Update existing credit
+        await api.updateTrancheEarnestCredit(credits[0].id, { amount });
+      } else {
+        // Create new credit
+        await api.createTrancheEarnestCredit(editCreditTranche.id, { amount });
+      }
+      const updated = await api.getTrancheEarnestCredits(editCreditTranche.id);
+      setTrancheCredits(prev => ({ ...prev, [editCreditTranche.id]: updated }));
+      setShowCreditForm(false);
+      setEditCreditTranche(null);
     } catch (e) { alert(e.message); }
   }
 
@@ -288,7 +347,7 @@ function ContractCard({ contract, builders, onEditContract, onDeleteContract, on
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-[#1F4E79] text-white text-xs">
-                    {['#','Date','Lots','Base $/Lot','Months Escal.','Adj $/Lot','Revenue','Earnest Money','Lift $',''].map(h => (
+                    {['#','Date','Lots','Base $/Lot','Months Escal.','Adj $/Lot','Revenue','EM Credit','Lift $',''].map(h => (
                       <th key={h} className="px-3 py-2 text-right first:text-left last:text-center font-medium">{h}</th>
                     ))}
                   </tr>
@@ -299,6 +358,8 @@ function ContractCard({ contract, builders, onEditContract, onDeleteContract, on
                   )}
                   {tranches.map((tr, i) => {
                     const calc = calcTranche(contract, tr);
+                    const credits = trancheCredits[tr.id] || [];
+                    const totalCredit = credits.reduce((sum, c) => sum + parseFloat(c.amount), 0);
                     return (
                       <tr key={tr.id} className={i % 2 === 0 ? 'bg-white' : 'bg-blue-50/40'}>
                         <td className="px-3 py-2 text-gray-600">{tr.tranche_number}</td>
@@ -308,7 +369,12 @@ function ContractCard({ contract, builders, onEditContract, onDeleteContract, on
                         <td className="px-3 py-2 text-right">{calc.months_escalated}</td>
                         <td className="px-3 py-2 text-right">{fmtCurrency(calc.adj_lot_price, 2)}</td>
                         <td className="px-3 py-2 text-right font-semibold text-green-700">{fmtCurrency(calc.projected_revenue)}</td>
-                        <td className="px-3 py-2 text-right text-blue-700">{fmtCurrency(calc.projected_em)}</td>
+                        <td className="px-3 py-2 text-right text-blue-700">
+                          <div className="flex items-center justify-end gap-1">
+                            <span>{fmtCurrency(totalCredit)}</span>
+                            <button onClick={() => { setEditCreditTranche(tr); setShowCreditForm(true); }} className="p-0.5 rounded hover:bg-blue-100 text-gray-400 hover:text-blue-600 transition"><Pencil size={10} /></button>
+                          </div>
+                        </td>
                         <td className="px-3 py-2 text-right text-amber-700">{fmtCurrency(calc.escalator_lift)}</td>
                         <td className="px-3 py-2 text-center">
                           <div className="flex gap-1 justify-center">
@@ -333,12 +399,51 @@ function ContractCard({ contract, builders, onEditContract, onDeleteContract, on
                   )}
                 </tbody>
               </table>
-              <div className="px-4 py-3 bg-gray-50 border-t border-gray-100">
+
+              {/* Earnest Money Table */}
+              {earnestMoney.length > 0 && (
+                <div className="border-t border-gray-200">
+                  <div className="px-4 py-2 bg-gray-50 border-b border-gray-100">
+                    <h4 className="text-xs font-semibold text-gray-700">Earnest Money Revenue</h4>
+                  </div>
+                  <table className="w-full text-xs">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-3 py-2 text-left font-medium text-gray-600">Date</th>
+                        <th className="px-3 py-2 text-right font-medium text-gray-600">Amount</th>
+                        <th className="px-3 py-2 text-left font-medium text-gray-600">Notes</th>
+                        <th className="px-3 py-2"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {earnestMoney.map(em => (
+                        <tr key={em.id} className="hover:bg-gray-50">
+                          <td className="px-3 py-2">{em.received_date || '-'}</td>
+                          <td className="px-3 py-2 text-right font-semibold text-green-700">{fmtCurrency(em.amount)}</td>
+                          <td className="px-3 py-2 text-gray-600">{em.notes || '-'}</td>
+                          <td className="px-3 py-2 text-center">
+                            <button onClick={() => setEditEarnest(em)} className="p-1 rounded hover:bg-blue-100 text-gray-400 hover:text-blue-600 transition"><Pencil size={12} /></button>
+                            <button onClick={() => deleteEarnestMoney(em.id)} className="p-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-600 transition"><Trash2 size={12} /></button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 flex gap-3">
                 <button
                   onClick={() => { setShowTrancheForm(true); setEditTranche(null); }}
                   className="flex items-center gap-2 text-xs font-medium text-blue-700 hover:text-blue-900 transition"
                 >
                   <Plus size={14} /> Add Take Down
+                </button>
+                <button
+                  onClick={() => { setShowEarnestForm(true); setEditEarnest(null); }}
+                  className="flex items-center gap-2 text-xs font-medium text-green-700 hover:text-green-900 transition"
+                >
+                  <Plus size={14} /> Add Earnest Money
                 </button>
               </div>
             </>
@@ -364,6 +469,40 @@ function ContractCard({ contract, builders, onEditContract, onDeleteContract, on
           onConfirm={handleDeleteTranche}
           onCancel={() => setDeleteTranche(null)}
         />
+      )}
+
+      {(showEarnestForm || editEarnest) && (
+        <Modal title={editEarnest ? 'Edit Earnest Money' : 'Add Earnest Money'} onClose={() => { setShowEarnestForm(false); setEditEarnest(null); }}>
+          <form onSubmit={e => { e.preventDefault(); saveEarnestMoney({ amount: e.target.amount.value, received_date: e.target.received_date.value, notes: e.target.notes.value }); }} className="space-y-4">
+            <Input label="Amount ($)" name="amount" type="number" step="0.01" required defaultValue={editEarnest?.amount} />
+            <Input label="Received Date" name="received_date" type="date" defaultValue={editEarnest?.received_date} />
+            <Input label="Notes" name="notes" defaultValue={editEarnest?.notes || ''} />
+            <div className="flex gap-3 justify-end pt-2">
+              <button type="button" onClick={() => { setShowEarnestForm(false); setEditEarnest(null); }} className="px-4 py-2 rounded-lg border border-gray-300 text-sm hover:bg-gray-50">Cancel</button>
+              <button type="submit" className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#1F4E79] text-white text-sm hover:bg-[#153452]">
+                <Save size={14} /> Save
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {showCreditForm && editCreditTranche && (
+        <Modal title="Edit Earnest Money Credit" onClose={() => { setShowCreditForm(false); setEditCreditTranche(null); }}>
+          <form onSubmit={e => { e.preventDefault(); saveTrancheCredit(parseFloat(e.target.amount.value)); }} className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Total Available Earnest Money</label>
+              <div className="text-sm font-semibold text-green-700">{fmtCurrency(earnestMoney.reduce((sum, em) => sum + parseFloat(em.amount), 0))}</div>
+            </div>
+            <Input label="Credit Amount ($)" name="amount" type="number" step="0.01" required defaultValue={(trancheCredits[editCreditTranche.id] || [])[0]?.amount || 0} />
+            <div className="flex gap-3 justify-end pt-2">
+              <button type="button" onClick={() => { setShowCreditForm(false); setEditCreditTranche(null); }} className="px-4 py-2 rounded-lg border border-gray-300 text-sm hover:bg-gray-50">Cancel</button>
+              <button type="submit" className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#1F4E79] text-white text-sm hover:bg-[#153452]">
+                <Save size={14} /> Save
+              </button>
+            </div>
+          </form>
+        </Modal>
       )}
     </div>
   );

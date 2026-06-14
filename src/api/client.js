@@ -77,6 +77,26 @@ export const deleteTranche = (id) =>
 export const duplicateTranche = (id) =>
   request('POST', `/api/tranches/${id}/duplicate`);
 
+// ── Earnest Money Revenue ───────────────────────────────────
+export const getEarnestMoney = (contractId) =>
+  request('GET', `/api/contracts/${contractId}/earnest-money`);
+export const createEarnestMoney = (contractId, data) =>
+  request('POST', `/api/contracts/${contractId}/earnest-money`, data);
+export const updateEarnestMoney = (id, data) =>
+  request('PUT', `/api/earnest-money/${id}`, data);
+export const deleteEarnestMoney = (id) =>
+  request('DELETE', `/api/earnest-money/${id}`);
+
+// ── Tranche Earnest Credits ─────────────────────────────────
+export const getTrancheEarnestCredits = (trancheId) =>
+  request('GET', `/api/tranches/${trancheId}/earnest-credits`);
+export const createTrancheEarnestCredit = (trancheId, data) =>
+  request('POST', `/api/tranches/${trancheId}/earnest-credits`, data);
+export const updateTrancheEarnestCredit = (id, data) =>
+  request('PUT', `/api/earnest-credits/${id}`, data);
+export const deleteTrancheEarnestCredit = (id) =>
+  request('DELETE', `/api/earnest-credits/${id}`);
+
 // ── Dashboard ────────────────────────────────────────────────
 export const getDashboard = (projectId, days = 90) =>
   request('GET', `/api/projects/${projectId}/dashboard?days=${days}`);
