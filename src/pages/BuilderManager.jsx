@@ -338,7 +338,7 @@ function ContractCard({ contract, builders, onEditContract, onDeleteContract, on
                   onClick={() => { setShowTrancheForm(true); setEditTranche(null); }}
                   className="flex items-center gap-2 text-xs font-medium text-blue-700 hover:text-blue-900 transition"
                 >
-                  <Plus size={14} /> Add Tranche
+                  <Plus size={14} /> Add Take Down
                 </button>
               </div>
             </>
@@ -347,7 +347,7 @@ function ContractCard({ contract, builders, onEditContract, onDeleteContract, on
       )}
 
       {(showTrancheForm || editTranche) && (
-        <Modal title={editTranche ? 'Edit Tranche' : 'Add Tranche'} onClose={() => { setShowTrancheForm(false); setEditTranche(null); }}>
+        <Modal title={editTranche ? 'Edit Take Down' : 'Add Take Down'} onClose={() => { setShowTrancheForm(false); setEditTranche(null); }}>
           <TrancheForm
             initial={editTranche}
             contract={contract}
