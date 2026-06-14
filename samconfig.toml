@@ -1,0 +1,14 @@
+version = 1.0
+
+[default]
+[default.deploy]
+[default.deploy.parameters]
+stack_name = "land-finance-app-backend-v2"
+region = "us-west-2"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+resolve_s3 = true
+
+[default.build]
+[default.build.parameters]
+parallel = true

@@ -1,0 +1,176 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Land Finance App Backend API
+
+Globals:
+  Function:
+    Runtime: nodejs24.x
+    Timeout: 30
+    MemorySize: 512
+    Environment:
+      Variables:
+        NODE_ENV: production
+
+Resources:
+  # Lambda Function
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: server/
+      Handler: index.handler
+      Runtime: nodejs24.x
+      Timeout: 30
+      MemorySize: 512
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+        SubnetIds:
+          - !Ref Subnet1
+          - !Ref Subnet2
+      Environment:
+        Variables:
+          DB_HOST: !Ref DBHost
+          DB_PORT: !Ref DBPort
+          DB_NAME: !Ref DBName
+          DB_USER: !Ref DBUser
+          DB_PASSWORD: !Ref DBPassword
+          DB_SSL: !Ref DBSSL
+          JWT_SECRET: !Ref JWTSecret
+          S3_DOCUMENTS_BUCKET: !Ref S3DocumentsBucket
+          S3_REGION: !Ref AWS::Region
+          APP_REGION: !Ref AWS::Region
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+                - s3:DeleteObject
+                - s3:ListBucket
+              Resource:
+                - !Sub "arn:aws:s3:::${S3DocumentsBucket}"
+                - !Sub "arn:aws:s3:::${S3DocumentsBucket}/*"
+        - Statement:
+            - Effect: Allow
+              Action:
+                - rds-db:connect
+              Resource: !Sub "arn:aws:rds-db:${AWS::Region}:${AWS::AccountId}:dbuser:${RDSInstanceArn}/${DBUser}"
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /{proxy+}
+            Method: ANY
+            RestApiId: !Ref RestApi
+
+  # API Gateway
+  RestApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: prod
+      DefinitionBody:
+        openapi: 3.0.1
+        info:
+          title: Land Finance API
+          version: 1.0.0
+        paths:
+          /{proxy+}:
+            x-amazon-apigateway-any-method:
+              x-amazon-apigateway-integration:
+                type: aws_proxy
+                httpMethod: POST
+                uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiFunction.Arn}/invocations
+              responses:
+                "200":
+                  description: "200 response"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Headers:
+                      type: "string"
+                "401":
+                  description: "401 response"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Headers:
+                      type: "string"
+                "500":
+                  description: "500 response"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Headers:
+                      type: "string"
+        x-amazon-apigateway-gateway-responses:
+          DEFAULT_4XX:
+            responseParameters:
+              gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+              gatewayresponse.header.Access-Control-Allow-Methods: "'*'"
+              gatewayresponse.header.Access-Control-Allow-Headers: "'*'"
+          DEFAULT_5XX:
+            responseParameters:
+              gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+              gatewayresponse.header.Access-Control-Allow-Methods: "'*'"
+              gatewayresponse.header.Access-Control-Allow-Headers: "'*'"
+
+  # Outputs
+Outputs:
+  ApiUrl:
+    Description: API Gateway endpoint URL
+    Value: !Sub "https://${RestApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
+  ApiFunctionArn:
+    Description: Lambda function ARN
+    Value: !GetAtt ApiFunction.Arn
+
+Parameters:
+  DBHost:
+    Type: String
+    Description: RDS database host
+    NoEcho: true
+  DBPort:
+    Type: String
+    Default: "5432"
+    Description: RDS database port
+  DBName:
+    Type: String
+    Default: melina
+    Description: Database name
+  DBUser:
+    Type: String
+    Description: Database user
+    NoEcho: true
+  DBPassword:
+    Type: String
+    Description: Database password
+    NoEcho: true
+  DBSSL:
+    Type: String
+    Default: "true"
+    Description: Use SSL for database connection
+  JWTSecret:
+    Type: String
+    Description: JWT secret for authentication
+    NoEcho: true
+  S3DocumentsBucket:
+    Type: String
+    Default: acres-documents
+    Description: S3 bucket for document storage
+  RDSInstanceArn:
+    Type: String
+    Description: RDS instance ARN for IAM policy
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: Security group ID for Lambda function
+  Subnet1:
+    Type: AWS::EC2::Subnet::Id
+    Description: First subnet ID for Lambda VPC
+  Subnet2:
+    Type: AWS::EC2::Subnet::Id
+    Description: Second subnet ID for Lambda VPC

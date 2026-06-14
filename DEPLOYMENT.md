@@ -1,5 +1,5 @@
 # Backend Deployment with AWS SAM
-# Updated API endpoint to us-west-2
+# Updated API endpoint to us-west-2 with CORS support
 
 This project uses AWS SAM (Serverless Application Model) to deploy the backend as a Lambda function with API Gateway.
 
