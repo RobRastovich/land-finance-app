@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import * as api from '../api/client';
 import { fmtCurrency, fmtDate, calcTranche } from '../utils/calculations';
-import { Calendar, DollarSign, Building2, TrendingUp, Clock, AlertCircle, Copy, Trash2, X, AlertTriangle } from 'lucide-react';
+import { Calendar, DollarSign, Building2, TrendingUp, Clock, AlertCircle, Copy, Trash2, X, AlertTriangle, Pencil } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { parseISO, isWithinInterval, addDays, format, isPast, isToday } from 'date-fns';
 
@@ -81,7 +81,7 @@ function UpcomingRow({ tranche, contract, builder, urgency }) {
 }
 
 export default function Dashboard() {
-  const { contracts, builders, projectId, reload } = useApp();
+  const { contracts, builders, projectId, reload, projects } = useApp();
   const navigate = useNavigate();
   const [window, setWindow] = useState(90);
   const [allTranches, setAllTranches] = useState([]);
@@ -90,6 +90,10 @@ export default function Dashboard() {
   const [duplicating, setDuplicating] = useState(false);
   const [deleteStep, setDeleteStep] = useState(0); // 0=hidden, 1=first confirm, 2=second confirm
   const [deleting, setDeleting] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [renameData, setRenameData] = useState({ name: '', description: '' });
+
+  const currentProject = projects.find(p => p.id === projectId);
 
   async function handleDuplicateCommunity() {
     setDuplicating(true);
@@ -115,6 +119,29 @@ export default function Dashboard() {
     } finally {
       setDeleting(false);
       setDeleteStep(0);
+    }
+  }
+
+  function openRenameModal() {
+    if (!currentProject) return;
+    setRenaming(true);
+    setRenameData({ name: currentProject.name, description: currentProject.description || '' });
+  }
+
+  function closeRenameModal() {
+    setRenaming(false);
+    setRenameData({ name: '', description: '' });
+  }
+
+  async function handleRename(e) {
+    e.preventDefault();
+    if (!renameData.name.trim()) return;
+    try {
+      await api.updateProject(projectId, renameData);
+      await reload();
+      closeRenameModal();
+    } catch (err) {
+      alert(err.message);
     }
   }
 
@@ -215,6 +242,12 @@ export default function Dashboard() {
       {/* Actions row */}
       <div className="flex justify-end gap-3">
         <button
+          onClick={openRenameModal}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-gray-300 text-gray-700 hover:text-blue-700 hover:border-blue-300 hover:bg-blue-50 transition"
+        >
+          <Pencil size={15} /> Rename
+        </button>
+        <button
           onClick={handleDuplicateCommunity}
           disabled={duplicating}
           className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-gray-300 text-gray-700 hover:text-green-700 hover:border-green-300 hover:bg-green-50 transition disabled:opacity-50"
@@ -277,6 +310,60 @@ export default function Dashboard() {
                 </>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {renaming && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-800">Rename Community</h3>
+              <button
+                onClick={closeRenameModal}
+                className="text-gray-400 hover:text-gray-600 transition"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <form onSubmit={handleRename}>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                  <input
+                    type="text"
+                    value={renameData.name}
+                    onChange={(e) => setRenameData({ ...renameData, name: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Description (optional)</label>
+                  <textarea
+                    value={renameData.description}
+                    onChange={(e) => setRenameData({ ...renameData, description: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                    rows={3}
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  type="button"
+                  onClick={closeRenameModal}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-[#1F4E79] text-white rounded-lg hover:bg-[#153452] transition"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
