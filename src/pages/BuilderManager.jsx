@@ -391,7 +391,7 @@ function ContractCard({ contract, builders, onEditContract, onDeleteContract, on
                       <td className="px-3 py-2 text-gray-400">—</td>
                       <td className="px-3 py-2 text-gray-400">—</td>
                       <td className="px-3 py-2 text-gray-400">—</td>
-                      <td className="px-3 py-2 text-right font-semibold text-red-700">{fmtCurrency(em.amount)}</td>
+                      <td className="px-3 py-2 text-gray-400">—</td>
                       <td className="px-3 py-2 text-right font-semibold text-green-700">{fmtCurrency(em.amount)}</td>
                       <td className="px-3 py-2 text-center">
                         <div className="flex gap-1 justify-center">
