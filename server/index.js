@@ -1020,27 +1020,39 @@ app.post('/api/projects/:id/documents/upload-url', authMiddleware, async (req, r
   } catch (e) { res.status(500).json({ message: e.message }); }
 });
 
+// Register document in database after successful upload
+app.post('/api/projects/:id/documents/register', authMiddleware, async (req, res) => {
+  const { key, name, size, content_type } = req.body;
+  if (!key || !name) return res.status(400).json({ message: 'key and name are required' });
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO documents (project_id, key, name, size, content_type, uploaded_by)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (project_id, key) DO UPDATE
+       SET name = EXCLUDED.name, size = EXCLUDED.size, content_type = EXCLUDED.content_type
+       RETURNING *`,
+      [req.params.id, key, name, size, content_type, req.user.id]
+    );
+    res.json(rows[0]);
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
 // List documents for a project
 app.get('/api/projects/:id/documents', authMiddleware, async (req, res) => {
   try {
-    const { rows } = await pool.query('SELECT name FROM projects WHERE id = $1', [req.params.id]);
-    if (rows.length === 0) return res.status(404).json({ message: 'Project not found' });
-    const folderName = rows[0].name.replace(/[^a-zA-Z0-9-_ ]/g, '').replace(/\s+/g, '-');
-
-    const command = new ListObjectsV2Command({
-      Bucket: S3_BUCKET,
-      Prefix: `${folderName}/`,
-      MaxKeys: 1000,
-    });
-    const response = await s3.send(command);
-    const files = (response.Contents || [])
-      .filter(obj => obj.Key !== `${folderName}/`)
-      .map(obj => ({
-        key: obj.Key,
-        name: obj.Key.replace(`${folderName}/`, ''),
-        size: obj.Size,
-        lastModified: obj.LastModified,
-      }));
+    const { rows } = await pool.query(
+      `SELECT id, key, name, size, content_type, uploaded_at
+       FROM documents
+       WHERE project_id = $1
+       ORDER BY uploaded_at DESC`,
+      [req.params.id]
+    );
+    const files = rows.map(doc => ({
+      key: doc.key,
+      name: doc.name,
+      size: doc.size,
+      lastModified: doc.uploaded_at,
+    }));
     res.json(files);
   } catch (e) { res.status(500).json({ message: e.message }); }
 });
@@ -1061,8 +1073,11 @@ app.delete('/api/projects/:id/documents', authMiddleware, adminOnly, async (req,
   const { key } = req.body;
   if (!key) return res.status(400).json({ message: 'key is required' });
   try {
+    // Delete from S3
     const command = new DeleteObjectCommand({ Bucket: S3_BUCKET, Key: key });
     await s3.send(command);
+    // Delete from database
+    await pool.query('DELETE FROM documents WHERE project_id = $1 AND key = $2', [req.params.id, key]);
     res.json({ success: true });
   } catch (e) { res.status(500).json({ message: e.message }); }
 });

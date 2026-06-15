@@ -65,15 +65,22 @@ export default function Documents() {
           throw new Error(`Upload failed for ${file.name}: ${uploadRes.status}`);
         }
         console.log('Upload successful:', file.name);
+
+        // Register in database
+        setUploadProgress(`Registering ${file.name}...`);
+        await api.registerDocument(projectId, key, file.name, file.size, file.type);
+        console.log('Document registered:', file.name);
       }
-      setUploadProgress('Upload complete! Please refresh to see your files.');
-      // Don't auto-reload to avoid timeout - let user refresh manually
-      setTimeout(() => setUploadProgress(''), 3000);
+      setUploadProgress('Finalizing...');
+      await new Promise(resolve => setTimeout(resolve, 500));
+      await load();
+      setUploadProgress('');
     } catch (err) {
       console.error('Upload error:', err);
       alert(err.message);
     } finally {
       setUploading(false);
+      setUploadProgress('');
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   }

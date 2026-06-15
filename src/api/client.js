@@ -147,6 +147,8 @@ export const getDocuments = (projectId) =>
   request('GET', `/api/projects/${projectId}/documents`);
 export const getUploadUrl = (projectId, filename, contentType) =>
   request('POST', `/api/projects/${projectId}/documents/upload-url`, { filename, content_type: contentType });
+export const registerDocument = (projectId, key, name, size, contentType) =>
+  request('POST', `/api/projects/${projectId}/documents/register`, { key, name, size, content_type: contentType });
 export const getDownloadUrl = (projectId, key) =>
   request('POST', `/api/projects/${projectId}/documents/download-url`, { key });
 export const deleteDocument = (projectId, key) =>
