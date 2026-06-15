@@ -9,48 +9,85 @@ import * as XLSX from 'xlsx';
 export default function CashFlow() {
   const { contracts, builders } = useApp();
   const [allTranches, setAllTranches] = useState([]);
+  const [earnestMoney, setEarnestMoney] = useState([]);
+  const [trancheCredits, setTrancheCredits] = useState({});
   const [loading, setLoading] = useState(false);
   const [view, setView] = useState('revenue'); // 'revenue' | 'em' | 'both'
 
   useEffect(() => {
     if (!contracts.length) return;
     setLoading(true);
-    Promise.all(contracts.map(c =>
-      api.getTranches(c.id).then(ts => ts.map(t => ({ ...t, contract_id: c.id })))
-    ))
-      .then(r => setAllTranches(r.flat()))
+    Promise.all([
+      Promise.all(contracts.map(c =>
+        api.getTranches(c.id).then(ts => ts.map(t => ({ ...t, contract_id: c.id })))
+      )),
+      Promise.all(contracts.map(c => api.getEarnestMoney(c.id).then(em => em.map(e => ({ ...e, contract_id: c.id })))))
+    ])
+      .then(([tranchesData, emData]) => {
+        setAllTranches(tranchesData.flat());
+        setEarnestMoney(emData.flat());
+        // Fetch tranche credits
+        const creditsByTranche = {};
+        const creditPromises = tranchesData.flat().map(t =>
+          api.getTrancheEarnestCredits(t.id).then(credits => ({ trancheId: t.id, credits }))
+        );
+        Promise.all(creditPromises).then(results => {
+          results.forEach(({ trancheId, credits }) => {
+            creditsByTranche[trancheId] = credits;
+          });
+          setTrancheCredits(creditsByTranche);
+        });
+      })
       .finally(() => setLoading(false));
   }, [contracts]);
 
   const contractMap = useMemo(() => Object.fromEntries(contracts.map(c => [c.id, c])), [contracts]);
   const builderMap  = useMemo(() => Object.fromEntries(builders.map(b => [b.id, b])), [builders]);
 
-  // Unique sorted months across all tranches
+  // Unique sorted months across all tranches and earnest money
   const months = useMemo(() => {
-    const set = new Set(allTranches.map(t => format(parseISO(t.scheduled_date), 'yyyy-MM')));
+    const set = new Set([
+      ...allTranches.map(t => format(parseISO(t.scheduled_date), 'yyyy-MM')),
+      ...earnestMoney.map(em => em.received_date ? format(parseISO(em.received_date), 'yyyy-MM') : null)
+    ].filter(Boolean));
     return Array.from(set).sort();
-  }, [allTranches]);
+  }, [allTranches, earnestMoney]);
 
   // Row data: one row per contract, columns per month
   const rows = useMemo(() => {
     return contracts.map(c => {
       const builder = builderMap[c.builder_id];
       const cTranches = allTranches.filter(t => t.contract_id === c.id);
+      const cEarnestMoney = earnestMoney.filter(em => em.contract_id === c.id);
       const byMonth = {};
+
+      // Add tranche revenue and credits
       cTranches.forEach(t => {
         const mo = format(parseISO(t.scheduled_date), 'yyyy-MM');
         const calc = calcTranche(c, t);
+        const credits = trancheCredits[t.id] || [];
+        const totalCredit = credits.reduce((sum, cr) => sum + parseFloat(cr.amount), 0);
         if (!byMonth[mo]) byMonth[mo] = { revenue: 0, em: 0, lots: 0 };
-        byMonth[mo].revenue += calc.projected_revenue;
-        byMonth[mo].em      += calc.projected_em;
+        byMonth[mo].revenue += calc.projected_revenue + totalCredit;
+        byMonth[mo].em      += totalCredit;
         byMonth[mo].lots    += parseInt(t.lot_count, 10);
       });
+
+      // Add earnest money entries
+      cEarnestMoney.forEach(em => {
+        if (!em.received_date) return;
+        const mo = format(parseISO(em.received_date), 'yyyy-MM');
+        if (!byMonth[mo]) byMonth[mo] = { revenue: 0, em: 0, lots: 0 };
+        byMonth[mo].revenue += parseFloat(em.amount);
+        byMonth[mo].em      += parseFloat(em.amount);
+      });
+
       const totalRev = Object.values(byMonth).reduce((s, v) => s + v.revenue, 0);
       const totalEM  = Object.values(byMonth).reduce((s, v) => s + v.em, 0);
       const totalLots = cTranches.reduce((s, t) => s + parseInt(t.lot_count, 10), 0);
       return { contract: c, builder, byMonth, totalRev, totalEM, totalLots };
     });
-  }, [contracts, allTranches, builderMap]);
+  }, [contracts, allTranches, builderMap, earnestMoney, trancheCredits]);
 
   // Column totals
   const colTotals = useMemo(() => {
