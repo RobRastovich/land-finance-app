@@ -373,19 +373,18 @@ function ContractCard({ contract, builders, onEditContract, onDeleteContract, on
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-[#1F4E79] text-white text-xs">
-                    {['Type','#','Date','Lots','Base $/Lot','Months Escal.','Adj $/Lot','EM Credit','Revenue',''].map(h => (
+                    {['Type','Date','Lots','Base $/Lot','Months Escal.','Adj $/Lot','EM Credit','Revenue',''].map(h => (
                       <th key={h} className="px-3 py-2 text-right first:text-left last:text-center font-medium">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {tranches.length === 0 && earnestMoney.length === 0 && (
-                    <tr><td colSpan={10} className="text-center py-6 text-gray-400 italic text-xs">No revenue entries yet. Add one below.</td></tr>
+                    <tr><td colSpan={9} className="text-center py-6 text-gray-400 italic text-xs">No revenue entries yet. Add one below.</td></tr>
                   )}
                   {earnestMoney.map((em, i) => (
                     <tr key={em.id} className={i % 2 === 0 ? 'bg-white' : 'bg-green-50/40'}>
                       <td className="px-3 py-2 text-green-700 font-medium">EM</td>
-                      <td className="px-3 py-2 text-gray-400">—</td>
                       <td className="px-3 py-2 text-right">{fmtDate(em.received_date)}</td>
                       <td className="px-3 py-2 text-gray-400">—</td>
                       <td className="px-3 py-2 text-gray-400">—</td>
@@ -409,7 +408,6 @@ function ContractCard({ contract, builders, onEditContract, onDeleteContract, on
                     return (
                       <tr key={tr.id} className={(earnestMoney.length + i) % 2 === 0 ? 'bg-white' : 'bg-blue-50/40'}>
                         <td className="px-3 py-2 text-gray-600 font-medium">Take Down</td>
-                        <td className="px-3 py-2 text-gray-600">{tr.tranche_number}</td>
                         <td className="px-3 py-2 text-right">{fmtDate(tr.scheduled_date)}</td>
                         <td className="px-3 py-2 text-right">{tr.lot_count}</td>
                         <td className="px-3 py-2 text-right">{fmtCurrency(calc.base_lot_price)}</td>
@@ -434,7 +432,7 @@ function ContractCard({ contract, builders, onEditContract, onDeleteContract, on
                   })}
                   {(tranches.length > 0 || earnestMoney.length > 0) && (
                     <tr className="bg-blue-900 text-white text-xs font-bold">
-                      <td className="px-3 py-2" colSpan={5}>TOTALS</td>
+                      <td className="px-3 py-2" colSpan={4}>TOTALS</td>
                       <td />
                       <td />
                       <td className="px-3 py-2 text-right">{fmtCurrency(totalEM)}</td>
