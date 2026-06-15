@@ -66,18 +66,14 @@ export default function Documents() {
         }
         console.log('Upload successful:', file.name);
       }
-      setUploadProgress('Finalizing...');
-      // Small delay to allow S3 consistency
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      console.log('Reloading documents...');
-      await load();
-      console.log('Documents reloaded, count:', documents.length);
+      setUploadProgress('Upload complete! Please refresh to see your files.');
+      // Don't auto-reload to avoid timeout - let user refresh manually
+      setTimeout(() => setUploadProgress(''), 3000);
     } catch (err) {
       console.error('Upload error:', err);
       alert(err.message);
     } finally {
       setUploading(false);
-      setUploadProgress('');
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   }
