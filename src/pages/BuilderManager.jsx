@@ -333,7 +333,7 @@ function ContractCard({ contract, builders, onEditContract, onDeleteContract, on
     const calc = calcTranche(contract, t);
     const credits = trancheCredits[t.id] || [];
     const totalCredit = credits.reduce((sum, c) => sum + parseFloat(c.amount), 0);
-    return s + calc.projected_revenue + totalCredit;
+    return s + calc.projected_revenue - totalCredit;
   }, 0) + earnestMoney.reduce((s, em) => s + parseFloat(em.amount), 0);
   const totalEM      = tranches.reduce((s, t) => {
     const credits = trancheCredits[t.id] || [];
@@ -404,7 +404,7 @@ function ContractCard({ contract, builders, onEditContract, onDeleteContract, on
                     const calc = calcTranche(contract, tr);
                     const credits = trancheCredits[tr.id] || [];
                     const totalCredit = credits.reduce((sum, c) => sum + parseFloat(c.amount), 0);
-                    const totalRevenue = calc.projected_revenue + totalCredit;
+                    const totalRevenue = calc.projected_revenue - totalCredit;
                     return (
                       <tr key={tr.id} className={(earnestMoney.length + i) % 2 === 0 ? 'bg-white' : 'bg-blue-50/40'}>
                         <td className="px-3 py-2 text-gray-600 font-medium">Take Down</td>

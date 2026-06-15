@@ -68,7 +68,7 @@ export default function CashFlow() {
         const credits = trancheCredits[t.id] || [];
         const totalCredit = credits.reduce((sum, cr) => sum + parseFloat(cr.amount), 0);
         if (!byMonth[mo]) byMonth[mo] = { revenue: 0, em: 0, lots: 0 };
-        byMonth[mo].revenue += calc.projected_revenue + totalCredit;
+        byMonth[mo].revenue += calc.projected_revenue - totalCredit;
         byMonth[mo].em      += totalCredit;
         byMonth[mo].lots    += parseInt(t.lot_count, 10);
       });
