@@ -1030,6 +1030,7 @@ app.get('/api/projects/:id/documents', authMiddleware, async (req, res) => {
     const command = new ListObjectsV2Command({
       Bucket: S3_BUCKET,
       Prefix: `${folderName}/`,
+      MaxKeys: 1000,
     });
     const response = await s3.send(command);
     const files = (response.Contents || [])

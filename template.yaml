@@ -80,6 +80,7 @@ Resources:
                 type: aws_proxy
                 httpMethod: POST
                 uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiFunction.Arn}/invocations
+                timeoutInMillis: 29000
               responses:
                 "200":
                   description: "200 response"
