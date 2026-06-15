@@ -373,14 +373,14 @@ function ContractCard({ contract, builders, onEditContract, onDeleteContract, on
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-[#1F4E79] text-white text-xs">
-                    {['Type','#','Date','Lots','Base $/Lot','Months Escal.','Adj $/Lot','Revenue','EM Credit','Lift $',''].map(h => (
+                    {['Type','#','Date','Lots','Base $/Lot','Months Escal.','Adj $/Lot','EM Credit','Revenue',''].map(h => (
                       <th key={h} className="px-3 py-2 text-right first:text-left last:text-center font-medium">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {tranches.length === 0 && earnestMoney.length === 0 && (
-                    <tr><td colSpan={11} className="text-center py-6 text-gray-400 italic text-xs">No revenue entries yet. Add one below.</td></tr>
+                    <tr><td colSpan={10} className="text-center py-6 text-gray-400 italic text-xs">No revenue entries yet. Add one below.</td></tr>
                   )}
                   {earnestMoney.map((em, i) => (
                     <tr key={em.id} className={i % 2 === 0 ? 'bg-white' : 'bg-green-50/40'}>
@@ -391,9 +391,8 @@ function ContractCard({ contract, builders, onEditContract, onDeleteContract, on
                       <td className="px-3 py-2 text-gray-400">—</td>
                       <td className="px-3 py-2 text-gray-400">—</td>
                       <td className="px-3 py-2 text-gray-400">—</td>
+                      <td className="px-3 py-2 text-right font-semibold text-red-700">{fmtCurrency(em.amount)}</td>
                       <td className="px-3 py-2 text-right font-semibold text-green-700">{fmtCurrency(em.amount)}</td>
-                      <td className="px-3 py-2 text-gray-400">—</td>
-                      <td className="px-3 py-2 text-gray-400">—</td>
                       <td className="px-3 py-2 text-center">
                         <div className="flex gap-1 justify-center">
                           <button onClick={() => setEditEarnest(em)} className="p-1 rounded hover:bg-blue-100 text-gray-400 hover:text-blue-600 transition"><Pencil size={12} /></button>
@@ -416,14 +415,13 @@ function ContractCard({ contract, builders, onEditContract, onDeleteContract, on
                         <td className="px-3 py-2 text-right">{fmtCurrency(calc.base_lot_price)}</td>
                         <td className="px-3 py-2 text-right">{calc.months_escalated}</td>
                         <td className="px-3 py-2 text-right">{fmtCurrency(calc.adj_lot_price, 2)}</td>
-                        <td className="px-3 py-2 text-right font-semibold text-green-700">{fmtCurrency(totalRevenue)}</td>
-                        <td className="px-3 py-2 text-right text-blue-700">
+                        <td className="px-3 py-2 text-right text-red-700">
                           <div className="flex items-center justify-end gap-1">
                             <span>{fmtCurrency(totalCredit)}</span>
-                            <button onClick={() => { setEditCreditTranche(tr); setShowCreditForm(true); }} className="p-0.5 rounded hover:bg-blue-100 text-gray-400 hover:text-blue-600 transition"><Pencil size={10} /></button>
+                            <button onClick={() => { setEditCreditTranche(tr); setShowCreditForm(true); }} className="p-0.5 rounded hover:bg-red-100 text-gray-400 hover:text-red-600 transition"><Pencil size={10} /></button>
                           </div>
                         </td>
-                        <td className="px-3 py-2 text-right text-amber-700">{fmtCurrency(calc.escalator_lift)}</td>
+                        <td className="px-3 py-2 text-right font-semibold text-green-700">{fmtCurrency(totalRevenue)}</td>
                         <td className="px-3 py-2 text-center">
                           <div className="flex gap-1 justify-center">
                             <button onClick={() => handleDuplicateTranche(tr)} title="Duplicate tranche" className="p-1 rounded hover:bg-green-100 text-gray-400 hover:text-green-600 transition"><Copy size={12} /></button>
@@ -439,9 +437,8 @@ function ContractCard({ contract, builders, onEditContract, onDeleteContract, on
                       <td className="px-3 py-2" colSpan={5}>TOTALS</td>
                       <td />
                       <td />
-                      <td className="px-3 py-2 text-right">{fmtCurrency(totalRevenue)}</td>
                       <td className="px-3 py-2 text-right">{fmtCurrency(totalEM)}</td>
-                      <td className="px-3 py-2 text-right">{fmtCurrency(tranches.reduce((s,t)=>s+calcTranche(contract,t).escalator_lift,0))}</td>
+                      <td className="px-3 py-2 text-right">{fmtCurrency(totalRevenue)}</td>
                       <td />
                     </tr>
                   )}
@@ -490,7 +487,7 @@ function ContractCard({ contract, builders, onEditContract, onDeleteContract, on
         <Modal title={editEarnest ? 'Edit Earnest Money' : 'Add Earnest Money'} onClose={() => { setShowEarnestForm(false); setEditEarnest(null); }}>
           <form onSubmit={e => { e.preventDefault(); saveEarnestMoney({ amount: e.target.amount.value, received_date: e.target.received_date.value, notes: e.target.notes.value }); }} className="space-y-4">
             <Input label="Amount ($)" name="amount" type="number" step="0.01" required defaultValue={editEarnest?.amount} />
-            <Input label="Received Date" name="received_date" type="date" defaultValue={editEarnest?.received_date} />
+            <Input label="Received Date" name="received_date" type="date" defaultValue={editEarnest?.received_date ? editEarnest.received_date.split('T')[0] : ''} />
             <Input label="Notes" name="notes" defaultValue={editEarnest?.notes || ''} />
             <div className="flex gap-3 justify-end pt-2">
               <button type="button" onClick={() => { setShowEarnestForm(false); setEditEarnest(null); }} className="px-4 py-2 rounded-lg border border-gray-300 text-sm hover:bg-gray-50">Cancel</button>
