@@ -50,7 +50,8 @@ export default function Documents() {
         setUploadProgress(`Uploading ${file.name} (${i + 1}/${files.length})...`);
 
         // Get presigned URL
-        const { uploadUrl } = await api.getUploadUrl(projectId, file.name, file.type);
+        const { uploadUrl, key } = await api.getUploadUrl(projectId, file.name, file.type);
+        console.log('Upload URL received:', key);
 
         // Upload directly to S3
         const uploadRes = await fetch(uploadUrl, {
@@ -58,11 +59,21 @@ export default function Documents() {
           headers: { 'Content-Type': file.type || 'application/octet-stream' },
           body: file,
         });
-        if (!uploadRes.ok) throw new Error(`Upload failed for ${file.name}`);
+        if (!uploadRes.ok) {
+          const errorText = await uploadRes.text();
+          console.error('Upload failed:', uploadRes.status, errorText);
+          throw new Error(`Upload failed for ${file.name}: ${uploadRes.status}`);
+        }
+        console.log('Upload successful:', file.name);
       }
-      setUploadProgress('');
-      load();
+      setUploadProgress('Finalizing...');
+      // Small delay to allow S3 consistency
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      console.log('Reloading documents...');
+      await load();
+      console.log('Documents reloaded, count:', documents.length);
     } catch (err) {
+      console.error('Upload error:', err);
       alert(err.message);
     } finally {
       setUploading(false);
