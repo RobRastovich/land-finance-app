@@ -780,10 +780,16 @@ app.post('/api/projects/:projectId/payments', async (req, res) => {
   if (!contract_id || !payment_type || !amount_expected || !due_date)
     return res.status(400).json({ message: 'contract_id, payment_type, amount_expected, and due_date are required' });
   try {
+    // Use string-based rounding to avoid floating point precision issues
+    const roundTo2 = (val) => {
+      const num = parseFloat(val || 0);
+      const rounded = Math.round(num * 100) / 100;
+      return parseFloat(rounded.toFixed(2));
+    };
     const { rows } = await pool.query(
       `INSERT INTO receivables (contract_id, tranche_id, payment_type, amount_expected, amount_received, due_date, received_date, status, reference_num, notes)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
-      [contract_id, tranche_id || null, payment_type, amount_expected, amount_received || 0, due_date, received_date || null, status || 'pending', reference_num || null, notes || null]
+      [contract_id, tranche_id || null, payment_type, roundTo2(amount_expected), roundTo2(amount_received), due_date, received_date || null, status || 'pending', reference_num || null, notes || null]
     );
     res.status(201).json(rows[0]);
   } catch (e) { res.status(500).json({ message: e.message }); }
@@ -792,11 +798,17 @@ app.post('/api/projects/:projectId/payments', async (req, res) => {
 app.put('/api/payments/:id', async (req, res) => {
   const { amount_expected, amount_received, due_date, received_date, status, reference_num, notes, tranche_id } = req.body;
   try {
+    // Use string-based rounding to avoid floating point precision issues
+    const roundTo2 = (val) => {
+      const num = parseFloat(val || 0);
+      const rounded = Math.round(num * 100) / 100;
+      return parseFloat(rounded.toFixed(2));
+    };
     const { rows } = await pool.query(
       `UPDATE receivables
        SET amount_expected=$1, amount_received=$2, due_date=$3, received_date=$4, status=$5, reference_num=$6, notes=$7, tranche_id=$8
        WHERE id=$9 RETURNING *`,
-      [amount_expected, amount_received, due_date, received_date || null, status, reference_num || null, notes || null, tranche_id || null, req.params.id]
+      [roundTo2(amount_expected), roundTo2(amount_received), due_date, received_date || null, status, reference_num || null, notes || null, tranche_id || null, req.params.id]
     );
     if (rows.length === 0) return res.status(404).json({ message: 'Payment not found' });
     res.json(rows[0]);
