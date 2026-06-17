@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import * as api from '../api/client';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Pencil } from 'lucide-react';
 
 const STATUS_COLORS = {
   paid:    'bg-green-100 text-green-700',
@@ -209,6 +209,13 @@ export default function Payments() {
                 value={form.amount_expected}
                 onChange={(e) => setForm(f => ({ ...f, amount_expected: e.target.value }))}
                 className="w-full px-3 py-2 border rounded-lg text-sm"
+                onBlur={(e) => {
+                  const val = parseFloat(e.target.value);
+                  if (!isNaN(val)) {
+                    e.target.value = val.toFixed(2);
+                    setForm(f => ({ ...f, amount_expected: val.toFixed(2) }));
+                  }
+                }}
               />
             </div>
             <div>
@@ -227,6 +234,13 @@ export default function Payments() {
                 value={form.amount_received}
                 onChange={(e) => setForm(f => ({ ...f, amount_received: e.target.value }))}
                 className="w-full px-3 py-2 border rounded-lg text-sm"
+                onBlur={(e) => {
+                  const val = parseFloat(e.target.value);
+                  if (!isNaN(val)) {
+                    e.target.value = val.toFixed(2);
+                    setForm(f => ({ ...f, amount_received: val.toFixed(2) }));
+                  }
+                }}
               />
             </div>
             <div>
@@ -300,7 +314,7 @@ export default function Payments() {
           </thead>
           <tbody className="divide-y">
             {payments.map(p => (
-              <tr key={p.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => editPayment(p)}>
+              <tr key={p.id} className="hover:bg-gray-50">
                 <td className="px-4 py-3 font-medium text-gray-800">{p.builder_name}</td>
                 <td className="px-4 py-3 text-gray-600 text-xs">
                   {p.tranche_number ? `#${p.tranche_number} — ${p.tranche_date?.slice(0, 10)}` : '—'}
@@ -316,12 +330,22 @@ export default function Payments() {
                 </td>
                 <td className="px-4 py-3 text-gray-500 text-xs">{p.reference_num || '—'}</td>
                 <td className="px-4 py-3">
-                  <button
-                    onClick={(e) => { e.stopPropagation(); handleDelete(p.id); }}
-                    className="text-gray-400 hover:text-red-500 transition"
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); editPayment(p); }}
+                      className="text-gray-400 hover:text-blue-500 transition"
+                      title="Edit"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleDelete(p.id); }}
+                      className="text-gray-400 hover:text-red-500 transition"
+                      title="Delete"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}

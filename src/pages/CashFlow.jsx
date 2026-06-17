@@ -69,7 +69,8 @@ export default function CashFlow() {
         const totalCredit = credits.reduce((sum, cr) => sum + parseFloat(cr.amount), 0);
         if (!byMonth[mo]) byMonth[mo] = { revenue: 0, em: 0, lots: 0 };
         byMonth[mo].revenue += calc.projected_revenue - totalCredit;
-        byMonth[mo].em      += totalCredit;
+        // Don't add tranche credits to EM here - they're just applications of EM entries
+        // EM is counted from the actual earnest_money table entries below
         byMonth[mo].lots    += parseInt(t.lot_count, 10);
       });
 
@@ -85,7 +86,6 @@ export default function CashFlow() {
       const totalRev = Object.values(byMonth).reduce((s, v) => s + v.revenue, 0);
       const totalEM  = Object.values(byMonth).reduce((s, v) => s + v.em, 0);
       const totalLots = cTranches.reduce((s, t) => s + parseInt(t.lot_count, 10), 0);
-      console.log(`Contract ${c.id}: totalEM=${totalEM}, cEarnestMoney count=${cEarnestMoney.length}`, cEarnestMoney);
       return { contract: c, builder, byMonth, totalRev, totalEM, totalLots };
     });
   }, [contracts, allTranches, builderMap, earnestMoney, trancheCredits]);
