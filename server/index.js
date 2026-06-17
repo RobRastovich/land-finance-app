@@ -790,12 +790,13 @@ app.post('/api/projects/:projectId/payments', async (req, res) => {
 });
 
 app.put('/api/payments/:id', async (req, res) => {
-  const { amount_received, received_date, status, reference_num, notes } = req.body;
+  const { amount_expected, amount_received, due_date, received_date, status, reference_num, notes, tranche_id } = req.body;
   try {
     const { rows } = await pool.query(
-      `UPDATE receivables SET amount_received=$1, received_date=$2, status=$3, reference_num=$4, notes=$5
-       WHERE id=$6 RETURNING *`,
-      [amount_received, received_date || null, status, reference_num || null, notes || null, req.params.id]
+      `UPDATE receivables
+       SET amount_expected=$1, amount_received=$2, due_date=$3, received_date=$4, status=$5, reference_num=$6, notes=$7, tranche_id=$8
+       WHERE id=$9 RETURNING *`,
+      [amount_expected, amount_received, due_date, received_date || null, status, reference_num || null, notes || null, tranche_id || null, req.params.id]
     );
     if (rows.length === 0) return res.status(404).json({ message: 'Payment not found' });
     res.json(rows[0]);

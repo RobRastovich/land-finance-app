@@ -20,7 +20,7 @@ const PAYMENT_TYPES = [
 export default function Payments() {
   const { projectId, contracts } = useApp();
   const [payments, setPayments] = useState([]);
-  const [tranches, setTranches] = useState([]);
+  const [takedowns, setTakedowns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -36,11 +36,11 @@ export default function Payments() {
     try {
       const data = await api.getPayments(projectId);
       setPayments(data);
-      // Load all tranches for all contracts
-      const allTranches = await Promise.all(
+      // Load all takedowns for all contracts
+      const allTakedowns = await Promise.all(
         contracts.map(c => api.getTranches(c.id).then(ts => ts.map(t => ({ ...t, contract_id: c.id }))))
       );
-      setTranches(allTranches.flat());
+      setTakedowns(allTakedowns.flat());
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   }, [projectId, contracts]);
@@ -49,7 +49,7 @@ export default function Payments() {
 
   function resetForm() {
     setForm({
-      contract_id: '', tranche_id: '', payment_type: 'lot_purchase', amount_expected: '',
+      contract_id: '', takedown_id: '', payment_type: 'lot_purchase', amount_expected: '',
       amount_received: '', due_date: '', received_date: '', status: 'pending',
       reference_num: '', notes: '',
     });
@@ -62,18 +62,21 @@ export default function Payments() {
     try {
       if (editingId) {
         await api.updatePayment(editingId, {
+          amount_expected: parseFloat(form.amount_expected),
           amount_received: parseFloat(form.amount_received) || 0,
+          due_date: form.due_date,
           received_date: form.received_date || null,
           status: form.status,
           reference_num: form.reference_num,
           notes: form.notes,
+          tranche_id: form.takedown_id || null,
         });
       } else {
         await api.createPayment(projectId, {
           ...form,
           amount_expected: parseFloat(form.amount_expected),
           amount_received: parseFloat(form.amount_received) || 0,
-          tranche_id: form.tranche_id || null,
+          tranche_id: form.takedown_id || null,
         });
       }
       resetForm();
@@ -84,7 +87,7 @@ export default function Payments() {
   function editPayment(p) {
     setForm({
       contract_id: p.contract_id,
-      tranche_id: p.tranche_id || '',
+      takedown_id: p.tranche_id || '',
       payment_type: p.payment_type,
       amount_expected: p.amount_expected,
       amount_received: p.amount_received || '',
@@ -104,14 +107,14 @@ export default function Payments() {
     load();
   }
 
-  const fmt = (n) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n || 0);
+  const fmt = (n) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0);
 
   const totalExpected = payments.reduce((s, p) => s + parseFloat(p.amount_expected || 0), 0);
   const totalReceived = payments.reduce((s, p) => s + parseFloat(p.amount_received || 0), 0);
 
-  // Filter tranches by selected contract
-  const contractTranches = form.contract_id
-    ? tranches.filter(t => t.contract_id === form.contract_id)
+  // Filter takedowns by selected contract
+  const contractTakedowns = form.contract_id
+    ? takedowns.filter(t => t.contract_id === form.contract_id)
     : [];
 
   if (loading) return <div className="text-gray-400 p-8">Loading payments...</div>;
@@ -156,70 +159,67 @@ export default function Payments() {
             {editingId ? 'Update Payment' : 'New Payment'}
           </h3>
           <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {!editingId && (
-              <>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Contract *</label>
-                  <select
-                    value={form.contract_id}
-                    onChange={(e) => setForm(f => ({ ...f, contract_id: e.target.value, tranche_id: '' }))}
-                    required
-                    className="w-full px-3 py-2 border rounded-lg text-sm"
-                  >
-                    <option value="">Select contract...</option>
-                    {contracts.map(c => (
-                      <option key={c.id} value={c.id}>
-                        {c.builder_name || 'Builder'} — {c.lot_size_label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Tranche (Optional)</label>
-                  <select
-                    value={form.tranche_id}
-                    onChange={(e) => setForm(f => ({ ...f, tranche_id: e.target.value }))}
-                    disabled={!form.contract_id}
-                    className="w-full px-3 py-2 border rounded-lg text-sm disabled:bg-gray-100"
-                  >
-                    <option value="">Select tranche...</option>
-                    {contractTranches.map(t => (
-                      <option key={t.id} value={t.id}>
-                        Tranche #{t.tranche_number} — {t.scheduled_date} ({t.lot_count} lots)
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Payment Type *</label>
-                  <select
-                    value={form.payment_type}
-                    onChange={(e) => setForm(f => ({ ...f, payment_type: e.target.value }))}
-                    className="w-full px-3 py-2 border rounded-lg text-sm"
-                  >
-                    {PAYMENT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Amount Expected *</label>
-                  <input
-                    type="number" step="0.01" required
-                    value={form.amount_expected}
-                    onChange={(e) => setForm(f => ({ ...f, amount_expected: e.target.value }))}
-                    className="w-full px-3 py-2 border rounded-lg text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Due Date *</label>
-                  <input
-                    type="date" required
-                    value={form.due_date}
-                    onChange={(e) => setForm(f => ({ ...f, due_date: e.target.value }))}
-                    className="w-full px-3 py-2 border rounded-lg text-sm"
-                  />
-                </div>
-              </>
-            )}
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Contract *</label>
+              <select
+                value={form.contract_id}
+                onChange={(e) => setForm(f => ({ ...f, contract_id: e.target.value, takedown_id: '' }))}
+                required
+                disabled={editingId}
+                className="w-full px-3 py-2 border rounded-lg text-sm disabled:bg-gray-100"
+              >
+                <option value="">Select contract...</option>
+                {contracts.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.builder_name || 'Builder'} — {c.lot_size_label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Takedown (Optional)</label>
+              <select
+                value={form.takedown_id}
+                onChange={(e) => setForm(f => ({ ...f, takedown_id: e.target.value }))}
+                disabled={!form.contract_id}
+                className="w-full px-3 py-2 border rounded-lg text-sm disabled:bg-gray-100"
+              >
+                <option value="">Select takedown...</option>
+                {contractTakedowns.map(t => (
+                  <option key={t.id} value={t.id}>
+                    Takedown #{t.tranche_number} — {t.scheduled_date} ({t.lot_count} lots)
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Payment Type *</label>
+              <select
+                value={form.payment_type}
+                onChange={(e) => setForm(f => ({ ...f, payment_type: e.target.value }))}
+                className="w-full px-3 py-2 border rounded-lg text-sm"
+              >
+                {PAYMENT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Amount Expected *</label>
+              <input
+                type="number" step="0.01" required
+                value={form.amount_expected}
+                onChange={(e) => setForm(f => ({ ...f, amount_expected: e.target.value }))}
+                className="w-full px-3 py-2 border rounded-lg text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Due Date *</label>
+              <input
+                type="date" required
+                value={form.due_date}
+                onChange={(e) => setForm(f => ({ ...f, due_date: e.target.value }))}
+                className="w-full px-3 py-2 border rounded-lg text-sm"
+              />
+            </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Amount Received</label>
               <input
@@ -288,7 +288,7 @@ export default function Payments() {
           <thead className="bg-gray-50 border-b">
             <tr>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Builder</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Tranche</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Takedown</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Type</th>
               <th className="text-right px-4 py-3 font-medium text-gray-600">Expected</th>
               <th className="text-right px-4 py-3 font-medium text-gray-600">Received</th>
