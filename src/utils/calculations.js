@@ -72,8 +72,12 @@ export function fmtNum(val) {
 export function fmtDate(dateStr) {
   if (!dateStr) return '—';
   try {
+    // Handle timezone issue by splitting date string and using local time
+    // This prevents the date from shifting due to timezone conversion
+    const [year, month, day] = dateStr.split('T')[0].split('-').map(Number);
+    const date = new Date(year, month - 1, day); // month is 0-indexed in Date constructor
     return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-      .format(parseISO(dateStr));
+      .format(date);
   } catch {
     return dateStr;
   }

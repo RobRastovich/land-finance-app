@@ -350,7 +350,7 @@ function ContractCard({ contract, builders, onEditContract, onDeleteContract, on
     const credits = trancheCredits[t.id] || [];
     const totalCredit = credits.reduce((sum, c) => sum + parseFloat(c.amount), 0);
     return s + calc.projected_revenue - totalCredit;
-  }, 0) + earnestMoney.reduce((s, em) => s + parseFloat(em.amount), 0);
+  }, 0);
   const totalEM      = tranches.reduce((s, t) => {
     const credits = trancheCredits[t.id] || [];
     return s + credits.reduce((sum, c) => sum + parseFloat(c.amount), 0);
