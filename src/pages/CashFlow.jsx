@@ -85,6 +85,7 @@ export default function CashFlow() {
       const totalRev = Object.values(byMonth).reduce((s, v) => s + v.revenue, 0);
       const totalEM  = Object.values(byMonth).reduce((s, v) => s + v.em, 0);
       const totalLots = cTranches.reduce((s, t) => s + parseInt(t.lot_count, 10), 0);
+      console.log(`Contract ${c.id}: totalEM=${totalEM}, cEarnestMoney count=${cEarnestMoney.length}`, cEarnestMoney);
       return { contract: c, builder, byMonth, totalRev, totalEM, totalLots };
     });
   }, [contracts, allTranches, builderMap, earnestMoney, trancheCredits]);

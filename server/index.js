@@ -1069,8 +1069,8 @@ app.post('/api/projects/:id/documents/download-url', authMiddleware, async (req,
   } catch (e) { res.status(500).json({ message: e.message }); }
 });
 
-// Delete document (admin only)
-app.delete('/api/projects/:id/documents', authMiddleware, adminOnly, async (req, res) => {
+// Delete document
+app.delete('/api/projects/:id/documents', authMiddleware, async (req, res) => {
   const { key } = req.body;
   if (!key) return res.status(400).json({ message: 'key is required' });
   try {

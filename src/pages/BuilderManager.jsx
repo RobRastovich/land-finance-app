@@ -100,6 +100,7 @@ function ContractForm({ initial, builders, onSave, onClose }) {
     em_pct: initial?.em_pct || 0.10,
     notes: initial?.notes || '',
   });
+  const [totalEarnestMoney, setTotalEarnestMoney] = useState(0);
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
 
   // When editing, ensure date is in YYYY-MM-DD format for date input
@@ -116,6 +117,13 @@ function ContractForm({ initial, builders, onSave, onClose }) {
         em_pct: initial.em_pct || 0.10,
         notes: initial.notes || '',
       });
+      // Load total earnest money for this contract
+      if (initial.id) {
+        api.getEarnestMoney(initial.id).then(em => {
+          const total = em.reduce((sum, e) => sum + parseFloat(e.amount || 0), 0);
+          setTotalEarnestMoney(total);
+        }).catch(() => setTotalEarnestMoney(0));
+      }
     }
   }, [initial, builders]);
   const lotPrice = parseFloat(form.ff_width || 0) * parseFloat(form.ff_price || 0);
@@ -145,6 +153,14 @@ function ContractForm({ initial, builders, onSave, onClose }) {
         <Input label="Escalator Rate (% per year)" value={parseFloat(form.escalator_rate) * 100} onChange={e => setForm(f => ({ ...f, escalator_rate: e.target.value / 100 }))} type="number" step="0.01" min="0" />
         <Input label="Escalator Start Date" value={form.escalator_start} onChange={set('escalator_start')} type="date" />
       </div>
+      {initial && (
+        <div>
+          <span className="text-xs font-medium text-gray-600 mb-1 block">Total Earnest Money (read-only)</span>
+          <div className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 font-semibold text-blue-700">
+            {fmtCurrency(totalEarnestMoney)}
+          </div>
+        </div>
+      )}
       <Input label="Notes" value={form.notes || ''} onChange={set('notes')} />
       <div className="flex gap-3 justify-end pt-2">
         <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg border border-gray-300 text-sm hover:bg-gray-50">Cancel</button>

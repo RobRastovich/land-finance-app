@@ -20,7 +20,7 @@ function getFileIcon(name) {
 }
 
 export default function Documents() {
-  const { projectId, isAdmin } = useApp();
+  const { projectId } = useApp();
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -171,15 +171,13 @@ export default function Documents() {
                         >
                           <Download size={16} />
                         </button>
-                        {isAdmin && (
-                          <button
-                            onClick={() => handleDelete(doc)}
-                            className="text-gray-400 hover:text-red-500 transition p-1"
-                            title="Delete"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        )}
+                        <button
+                          onClick={() => handleDelete(doc)}
+                          className="text-gray-400 hover:text-red-500 transition p-1"
+                          title="Delete"
+                        >
+                          <Trash2 size={16} />
+                        </button>
                       </div>
                     </td>
                   </tr>
