@@ -206,9 +206,16 @@ export default function Payments() {
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Amount Expected *</label>
               <input
-                type="number" step="0.01" required
+                type="text" required
                 value={form.amount_expected}
-                onChange={(e) => setForm(f => ({ ...f, amount_expected: e.target.value }))}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  // Allow only numbers and one decimal point
+                  if (/^\d*\.?\d*$/.test(val)) {
+                    setForm(f => ({ ...f, amount_expected: val }));
+                  }
+                }}
+                placeholder="0.00"
                 className="w-full px-3 py-2 border rounded-lg text-sm"
               />
             </div>
@@ -224,9 +231,16 @@ export default function Payments() {
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Amount Received</label>
               <input
-                type="number" step="0.01"
+                type="text"
                 value={form.amount_received}
-                onChange={(e) => setForm(f => ({ ...f, amount_received: e.target.value }))}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  // Allow only numbers and one decimal point
+                  if (/^\d*\.?\d*$/.test(val) || val === '') {
+                    setForm(f => ({ ...f, amount_received: val }));
+                  }
+                }}
+                placeholder="0.00"
                 className="w-full px-3 py-2 border rounded-lg text-sm"
               />
             </div>
