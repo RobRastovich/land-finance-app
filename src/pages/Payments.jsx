@@ -110,8 +110,8 @@ export default function Payments() {
 
   const fmt = (n) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0);
 
-  const totalExpected = payments.reduce((s, p) => s + parseFloat(p.amount_expected || 0), 0);
-  const totalReceived = payments.reduce((s, p) => s + parseFloat(p.amount_received || 0), 0);
+  const totalExpected = Math.round(payments.reduce((s, p) => s + parseFloat(p.amount_expected || 0), 0) * 100) / 100;
+  const totalReceived = Math.round(payments.reduce((s, p) => s + parseFloat(p.amount_received || 0), 0) * 100) / 100;
 
   // Filter takedowns by selected contract
   const contractTakedowns = form.contract_id
