@@ -60,10 +60,11 @@ export default function Payments() {
   async function handleSubmit(e) {
     e.preventDefault();
     try {
+      const roundTo2 = (val) => Math.round(parseFloat(val || 0) * 100) / 100;
       if (editingId) {
         await api.updatePayment(editingId, {
-          amount_expected: parseFloat(form.amount_expected),
-          amount_received: parseFloat(form.amount_received) || 0,
+          amount_expected: roundTo2(form.amount_expected),
+          amount_received: roundTo2(form.amount_received),
           due_date: form.due_date,
           received_date: form.received_date || null,
           status: form.status,
@@ -74,8 +75,8 @@ export default function Payments() {
       } else {
         await api.createPayment(projectId, {
           ...form,
-          amount_expected: parseFloat(form.amount_expected),
-          amount_received: parseFloat(form.amount_received) || 0,
+          amount_expected: roundTo2(form.amount_expected),
+          amount_received: roundTo2(form.amount_received),
           tranche_id: form.takedown_id || null,
         });
       }
@@ -209,13 +210,6 @@ export default function Payments() {
                 value={form.amount_expected}
                 onChange={(e) => setForm(f => ({ ...f, amount_expected: e.target.value }))}
                 className="w-full px-3 py-2 border rounded-lg text-sm"
-                onBlur={(e) => {
-                  const val = parseFloat(e.target.value);
-                  if (!isNaN(val)) {
-                    e.target.value = val.toFixed(2);
-                    setForm(f => ({ ...f, amount_expected: val.toFixed(2) }));
-                  }
-                }}
               />
             </div>
             <div>
@@ -234,13 +228,6 @@ export default function Payments() {
                 value={form.amount_received}
                 onChange={(e) => setForm(f => ({ ...f, amount_received: e.target.value }))}
                 className="w-full px-3 py-2 border rounded-lg text-sm"
-                onBlur={(e) => {
-                  const val = parseFloat(e.target.value);
-                  if (!isNaN(val)) {
-                    e.target.value = val.toFixed(2);
-                    setForm(f => ({ ...f, amount_received: val.toFixed(2) }));
-                  }
-                }}
               />
             </div>
             <div>
