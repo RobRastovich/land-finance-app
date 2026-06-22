@@ -121,25 +121,29 @@ server.tool(
   }
 );
 
+// ── Builders Tools ─────────────────────────────────────────
+
 server.tool(
-  'update_community',
-  'Update an existing community',
+  'create_builder',
+  'Create a new builder for a community',
   {
     community_id: z.string().describe('The UUID of the community'),
-    name: z.string().optional().describe('Updated community name'),
-    location: z.string().optional().describe('Updated community location'),
-    description: z.string().optional().describe('Updated community description'),
+    name: z.string().describe('Builder name'),
+    contact_name: z.string().optional().describe('Contact person name'),
+    contact_email: z.string().optional().describe('Contact email'),
+    contact_phone: z.string().optional().describe('Contact phone'),
+    notes: z.string().optional().describe('Additional notes'),
   },
-  async ({ community_id, name, location, description }) => {
+  async ({ community_id, name, contact_name, contact_email, contact_phone, notes }) => {
     try {
-      const community = await apiCall(`/api/projects/${community_id}`, {
-        method: 'PUT',
-        body: JSON.stringify({ name, location, description }),
+      const builder = await apiCall(`/api/projects/${community_id}/builders`, {
+        method: 'POST',
+        body: JSON.stringify({ name, contact_name, contact_email, contact_phone, notes }),
       });
       return {
         content: [{
           type: 'text',
-          text: `Community updated successfully:\n${JSON.stringify(community, null, 2)}`,
+          text: `Builder created successfully:\n${JSON.stringify(builder, null, 2)}`,
         }],
       };
     } catch (error) {
@@ -189,12 +193,12 @@ server.tool(
   {
     community_id: z.string().describe('The UUID of the community'),
     builder_id: z.string().describe('The UUID of the builder'),
-    lot_size_label: z.string().describe('Lot size label, e.g., "60s"'),
+    lot_size_label: z.string().describe('Lot size label (e.g., "50ft", "60ft")'),
     ff_width: z.number().describe('Front footage width in feet'),
     ff_price: z.number().describe('Price per front footage'),
     total_qty: z.number().describe('Total quantity of lots'),
     escalator_rate: z.number().optional().describe('Annual escalator rate as decimal (e.g., 0.05 for 5%)'),
-    escalator_start: z.string().optional().describe('Escalator start date in YYYY-MM-DD format'),
+    escalator_start: z.string().optional().describe('Escalator start date (YYYY-MM-DD)'),
     em_pct: z.number().optional().describe('Earnest money percentage as decimal (e.g., 0.10 for 10%)'),
     notes: z.string().optional().describe('Additional notes'),
   },
@@ -218,200 +222,6 @@ server.tool(
         content: [{
           type: 'text',
           text: `Contract created successfully:\n${JSON.stringify(contract, null, 2)}`,
-        }],
-      };
-    } catch (error) {
-      return {
-        content: [{
-          type: 'text',
-          text: `Error: ${error.message}`,
-        }],
-        isError: true,
-      };
-    }
-  }
-);
-
-// ── Tranches (Take Downs) Tools ──────────────────────────────
-
-server.tool(
-  'list_tranches',
-  'List all tranches (take downs) for a contract',
-  {
-    contract_id: z.string().describe('The UUID of the contract'),
-  },
-  async ({ contract_id }) => {
-    try {
-      const tranches = await apiCall(`/api/contracts/${contract_id}/tranches`);
-      return {
-        content: [{
-          type: 'text',
-          text: JSON.stringify(tranches, null, 2),
-        }],
-      };
-    } catch (error) {
-      return {
-        content: [{
-          type: 'text',
-          text: `Error: ${error.message}`,
-        }],
-        isError: true,
-      };
-    }
-  }
-);
-
-server.tool(
-  'create_tranche',
-  'Create a new tranche (take down) for a contract',
-  {
-    contract_id: z.string().describe('The UUID of the contract'),
-    tranche_number: z.number().describe('Tranche number'),
-    scheduled_date: z.string().describe('Scheduled date in YYYY-MM-DD format'),
-    lot_count: z.number().describe('Number of lots in this tranche'),
-  },
-  async ({ contract_id, tranche_number, scheduled_date, lot_count }) => {
-    try {
-      const tranche = await apiCall(`/api/contracts/${contract_id}/tranches`, {
-        method: 'POST',
-        body: JSON.stringify({ tranche_number, scheduled_date, lot_count }),
-      });
-      return {
-        content: [{
-          type: 'text',
-          text: `Tranche created successfully:\n${JSON.stringify(tranche, null, 2)}`,
-        }],
-      };
-    } catch (error) {
-      return {
-        content: [{
-          type: 'text',
-          text: `Error: ${error.message}`,
-        }],
-        isError: true,
-      };
-    }
-  }
-);
-
-// ── Payments Tools ─────────────────────────────────────────
-
-server.tool(
-  'list_payments',
-  'List all payments for a community',
-  {
-    community_id: z.string().describe('The UUID of the community'),
-  },
-  async ({ community_id }) => {
-    try {
-      const payments = await apiCall(`/api/projects/${community_id}/payments`);
-      return {
-        content: [{
-          type: 'text',
-          text: JSON.stringify(payments, null, 2),
-        }],
-      };
-    } catch (error) {
-      return {
-        content: [{
-          type: 'text',
-          text: `Error: ${error.message}`,
-        }],
-        isError: true,
-      };
-    }
-  }
-);
-
-server.tool(
-  'create_payment',
-  'Create a new payment record',
-  {
-    community_id: z.string().describe('The UUID of the community'),
-    contract_id: z.string().describe('The UUID of the contract'),
-    payment_type: z.enum(['earnest_money', 'lot_purchase', 'other']).describe('Type of payment'),
-    amount_expected: z.number().describe('Expected amount'),
-    due_date: z.string().describe('Due date in YYYY-MM-DD format'),
-    amount_received: z.number().optional().describe('Received amount'),
-    received_date: z.string().optional().describe('Received date in YYYY-MM-DD format'),
-    status: z.enum(['pending', 'partial', 'paid', 'overdue']).optional().describe('Payment status'),
-    reference_num: z.string().optional().describe('Reference number'),
-    notes: z.string().optional().describe('Additional notes'),
-  },
-  async ({ community_id, contract_id, payment_type, amount_expected, due_date, amount_received, received_date, status, reference_num, notes }) => {
-    try {
-      const payment = await apiCall(`/api/projects/${community_id}/payments`, {
-        method: 'POST',
-        body: JSON.stringify({
-          contract_id,
-          payment_type,
-          amount_expected,
-          due_date,
-          amount_received: amount_received || 0,
-          received_date: received_date || null,
-          status: status || 'pending',
-          reference_num: reference_num || null,
-          notes: notes || null,
-        }),
-      });
-      return {
-        content: [{
-          type: 'text',
-          text: `Payment created successfully:\n${JSON.stringify(payment, null, 2)}`,
-        }],
-      };
-    } catch (error) {
-      return {
-        content: [{
-          type: 'text',
-          text: `Error: ${error.message}`,
-        }],
-        isError: true,
-      };
-    }
-  }
-);
-
-// ── Cash Flow Tools ─────────────────────────────────────────
-
-server.tool(
-  'get_cash_flow',
-  'Get cash flow summary for a community',
-  {
-    community_id: z.string().describe('The UUID of the community'),
-  },
-  async ({ community_id }) => {
-    try {
-      // This would typically call a cash flow endpoint if available
-      // For now, we'll fetch contracts and tranches to calculate
-      const contracts = await apiCall(`/api/projects/${community_id}/contracts`);
-      
-      let totalRevenue = 0;
-      let totalLots = 0;
-      
-      for (const contract of contracts) {
-        const tranches = await apiCall(`/api/contracts/${contract.id}/tranches`);
-        for (const tranche of tranches) {
-          totalRevenue += parseFloat(tranche.projected_revenue || 0);
-          totalLots += parseInt(tranche.lot_count || 0);
-        }
-      }
-      
-      return {
-        content: [{
-          type: 'text',
-          text: JSON.stringify({
-            community_id,
-            total_contracts: contracts.length,
-            total_lots: totalLots,
-            total_projected_revenue: totalRevenue,
-            contracts: contracts.map(c => ({
-              id: c.id,
-              builder_id: c.builder_id,
-              lot_size_label: c.lot_size_label,
-              total_qty: c.total_qty,
-            })),
-          }, null, 2),
         }],
       };
     } catch (error) {

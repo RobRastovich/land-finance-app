@@ -9,4 +9,13 @@ manifest_hash = ""
 packagetype = "Zip"
 functions = ["ApiFunction"]
 
+[function_build_definitions.1aff1443-0b23-4d89-89f5-7cdf75e14817]
+codeuri = "/Users/rastovich/land-finance-app/mcp-server"
+runtime = "nodejs24.x"
+architecture = "x86_64"
+handler = "lambda.handler"
+manifest_hash = ""
+packagetype = "Zip"
+functions = ["McpApiFunction"]
+
 [layer_build_definitions]

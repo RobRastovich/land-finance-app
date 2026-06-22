@@ -1,10 +1,10 @@
 # Land Finance MCP Server
 
-A Model Context Protocol (MCP) server for the land-finance-app, enabling LLMs like ChatGPT, Claude, and others to interact with the application data and perform operations.
+A Model Context Protocol (MCP) server for the land-finance-app, enabling LLMs like Claude Desktop to interact with the application data and perform operations.
 
 ## Features
 
-The MCP server provides tools for:
+The API server provides endpoints for:
 
 - **Communities**: List, create, update communities
 - **Contracts**: List and create contracts with builders
@@ -38,19 +38,16 @@ LAND_FINANCE_API_TOKEN=your-jwt-token
 
 ## Usage
 
-### Running the Server
+### For Claude Desktop (Local MCP Server)
 
+The MCP server uses stdio transport, which is the standard for Claude Desktop integration.
+
+**Run the server locally:**
 ```bash
 npm start
 ```
 
-Or for development with auto-reload:
-
-```bash
-npm run dev
-```
-
-### Connecting with Claude Desktop
+**Configure Claude Desktop:**
 
 Add this to your Claude Desktop configuration file:
 
@@ -62,7 +59,7 @@ Add this to your Claude Desktop configuration file:
   "mcpServers": {
     "land-finance": {
       "command": "node",
-      "args": ["/path/to/land-finance-app/mcp-server/src/index.js"],
+      "args": ["/Users/rastovich/land-finance-app/mcp-server/src/index.js"],
       "env": {
         "LAND_FINANCE_API_ENDPOINT": "http://localhost:4000",
         "LAND_FINANCE_API_TOKEN": "your-jwt-token"
@@ -72,9 +69,51 @@ Add this to your Claude Desktop configuration file:
 }
 ```
 
-### Connecting with ChatGPT
+### For Remote REST API (AWS Lambda)
 
-For ChatGPT, you'll need to use an MCP-compatible client or adapter. The server uses stdio transport, which is the standard for local MCP integrations.
+A REST API version is deployed on AWS Lambda for remote access:
+
+**Deployed URL:**
+```
+https://8awyspwm22.execute-api.us-west-2.amazonaws.com/prod
+```
+
+This can be used by LLMs that support custom REST API endpoints or function calling.
+
+### Available Endpoints
+
+**Communities:**
+- `GET /api/communities` - List all communities
+- `GET /api/communities/:id` - Get specific community
+- `POST /api/communities` - Create new community
+- `PUT /api/communities/:id` - Update community
+
+**Contracts:**
+- `GET /api/communities/:communityId/contracts` - List contracts for community
+- `POST /api/communities/:communityId/contracts` - Create contract
+
+**Tranches:**
+- `GET /api/contracts/:contractId/tranches` - List tranches for contract
+- `POST /api/contracts/:contractId/tranches` - Create tranche
+
+**Payments:**
+- `GET /api/communities/:communityId/payments` - List payments for community
+- `POST /api/communities/:communityId/payments` - Create payment
+
+**Cash Flow:**
+- `GET /api/communities/:communityId/cash-flow` - Get cash flow summary
+
+**What-If Scenarios:**
+- `POST /api/what-if/revenue` - Calculate projected revenue
+
+### Connecting with LLMs
+
+For ChatGPT, Claude, or other LLMs, you can provide the API base URL:
+```
+http://localhost:3001
+```
+
+The LLM can then make HTTP requests to the endpoints listed above. Most LLM platforms support custom API endpoints or function calling that can use these REST endpoints.
 
 ## Available Tools
 

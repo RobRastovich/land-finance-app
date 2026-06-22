@@ -12,7 +12,7 @@ Globals:
         NODE_ENV: production
 
 Resources:
-  # Lambda Function
+  # Main API Lambda Function
   ApiFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -62,6 +62,85 @@ Resources:
             Path: /{proxy+}
             Method: ANY
             RestApiId: !Ref RestApi
+
+  # MCP API Gateway (for LLM integration)
+  McpRestApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: prod
+      DefinitionBody:
+        openapi: 3.0.1
+        info:
+          title: Land Finance MCP API
+          version: 1.0.0
+        paths:
+          /{proxy+}:
+            x-amazon-apigateway-any-method:
+              x-amazon-apigateway-integration:
+                type: aws_proxy
+                httpMethod: POST
+                uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${McpApiFunction.Arn}/invocations
+                timeoutInMillis: 29000
+              responses:
+                "200":
+                  description: "200 response"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Headers:
+                      type: "string"
+                "404":
+                  description: "404 response"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Headers:
+                      type: "string"
+                "500":
+                  description: "500 response"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Headers:
+                      type: "string"
+        x-amazon-apigateway-gateway-responses:
+          DEFAULT_4XX:
+            responseParameters:
+              gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+              gatewayresponse.header.Access-Control-Allow-Methods: "'*'"
+              gatewayresponse.header.Access-Control-Allow-Headers: "'*'"
+          DEFAULT_5XX:
+            responseParameters:
+              gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+              gatewayresponse.header.Access-Control-Allow-Methods: "'*'"
+              gatewayresponse.header.Access-Control-Allow-Headers: "'*'"
+
+  # MCP API Lambda Function (for LLM integration)
+  McpApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: mcp-server/
+      Handler: lambda.handler
+      Runtime: nodejs24.x
+      Timeout: 30
+      MemorySize: 256
+      Environment:
+        Variables:
+          LAND_FINANCE_API_ENDPOINT: !Sub "https://${RestApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
+          LAND_FINANCE_API_TOKEN: !Ref McpApiToken
+      Events:
+        McpApiEvent:
+          Type: Api
+          Properties:
+            Path: /{proxy+}
+            Method: ANY
+            RestApiId: !Ref McpRestApi
 
   # API Gateway
   RestApi:
@@ -129,8 +208,19 @@ Outputs:
   ApiFunctionArn:
     Description: Lambda function ARN
     Value: !GetAtt ApiFunction.Arn
+  McpApiUrl:
+    Description: MCP API Gateway endpoint URL
+    Value: !Sub "https://${McpRestApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
+  McpApiFunctionArn:
+    Description: MCP API Lambda function ARN
+    Value: !GetAtt McpApiFunction.Arn
 
 Parameters:
+  McpApiToken:
+    Type: String
+    Description: API token for MCP API authentication
+    NoEcho: true
+    Default: ""
   DBHost:
     Type: String
     Description: RDS database host
