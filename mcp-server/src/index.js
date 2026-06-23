@@ -121,6 +121,38 @@ server.tool(
   }
 );
 
+server.tool(
+  'update_community',
+  'Update/rename a community',
+  {
+    community_id: z.string().describe('The UUID of the community'),
+    name: z.string().describe('New community name'),
+    description: z.string().optional().describe('New community description'),
+  },
+  async ({ community_id, name, description }) => {
+    try {
+      const community = await apiCall(`/api/projects/${community_id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ name, description }),
+      });
+      return {
+        content: [{
+          type: 'text',
+          text: `Community updated successfully:\n${JSON.stringify(community, null, 2)}`,
+        }],
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text',
+          text: `Error: ${error.message}`,
+        }],
+        isError: true,
+      };
+    }
+  }
+);
+
 // ── Builders Tools ─────────────────────────────────────────
 
 server.tool(
@@ -222,6 +254,68 @@ server.tool(
         content: [{
           type: 'text',
           text: `Contract created successfully:\n${JSON.stringify(contract, null, 2)}`,
+        }],
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text',
+          text: `Error: ${error.message}`,
+        }],
+        isError: true,
+      };
+    }
+  }
+);
+
+// ── Tranches (Take Downs) Tools ─────────────────────────────
+
+server.tool(
+  'list_tranches',
+  'List all tranches (take downs) for a specific contract',
+  {
+    contract_id: z.string().describe('The UUID of the contract'),
+  },
+  async ({ contract_id }) => {
+    try {
+      const tranches = await apiCall(`/api/contracts/${contract_id}/tranches`);
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify(tranches, null, 2),
+        }],
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text',
+          text: `Error: ${error.message}`,
+        }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  'update_tranche',
+  'Update/rename a tranche (take down)',
+  {
+    tranche_id: z.string().describe('The UUID of the tranche'),
+    scheduled_date: z.string().optional().describe('New scheduled date (YYYY-MM-DD)'),
+    lot_count: z.number().optional().describe('New lot count'),
+    notes: z.string().optional().describe('New notes'),
+  },
+  async ({ tranche_id, scheduled_date, lot_count, notes }) => {
+    try {
+      const tranche = await apiCall(`/api/tranches/${tranche_id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ scheduled_date, lot_count, notes }),
+      });
+      return {
+        content: [{
+          type: 'text',
+          text: `Tranche updated successfully:\n${JSON.stringify(tranche, null, 2)}`,
         }],
       };
     } catch (error) {
