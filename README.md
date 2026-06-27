@@ -94,6 +94,19 @@ npm install
 npm run dev
 ```
 
+### AI Chat (Claude + MCP)
+
+The app includes a floating chat widget that connects to the standalone **[mcp-chat-bridge](https://github.com/your-org/mcp-chat-bridge)** project.
+
+Set these frontend environment variables to point at the deployed bridge:
+
+```bash
+REACT_APP_CHAT_API_ENDPOINT=https://your-chat-bridge-api.amazonaws.com/prod
+REACT_APP_CHAT_MCP_SERVER_ID=land_finance
+```
+
+The widget will appear in the bottom-right corner and will tell the bridge which MCP server to use.
+
 ---
 
 ## 5. Features
@@ -116,7 +129,9 @@ npm run dev
 melina-app/
 ├── src/
 │   ├── api/client.js          # All API fetch calls
+│   ├── api/chat.js            # Chat bridge API client
 │   ├── components/Layout.jsx  # Sidebar + nav
+│   ├── components/ChatWidget.jsx # Floating AI chat window
 │   ├── context/AppContext.jsx  # Global state
 │   ├── pages/
 │   │   ├── Dashboard.jsx       # KPIs + upcoming payments
@@ -126,6 +141,8 @@ melina-app/
 ├── server/
 │   ├── index.js               # Express API + all routes
 │   └── package.json
+├── mcp-server/
+│   └── src/index.js           # MCP server exposing land-finance tools
 ├── database/
 │   └── schema.sql             # Full Postgres schema + seed data
 ├── amplify.yml                # Amplify build config

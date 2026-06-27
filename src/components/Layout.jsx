@@ -5,6 +5,7 @@ import {
   LogOut, Menu, X, ChevronDown, ChevronRight, Plus, Users
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import ChatWidget from './ChatWidget';
 
 const SUB_NAV = [
   { path: 'dashboard', icon: LayoutDashboard, label: 'Dashboard'       },
@@ -179,6 +180,12 @@ export default function Layout({ children, signOut, user }) {
           {children}
         </main>
       </div>
+
+      <ChatWidget
+        mcpServerId={process.env.REACT_APP_CHAT_MCP_SERVER_ID}
+        getUserToken={() => localStorage.getItem('token')}
+        title="ACREs Assistant"
+      />
     </div>
   );
 }

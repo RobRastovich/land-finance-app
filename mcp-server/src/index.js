@@ -298,6 +298,39 @@ server.tool(
 );
 
 server.tool(
+  'create_tranche',
+  'Create a new take down (tranche) for a contract',
+  {
+    contract_id: z.string().describe('The UUID of the contract'),
+    scheduled_date: z.string().describe('Scheduled date for the take down (YYYY-MM-DD)'),
+    lot_count: z.number().describe('Number of lots in this take down'),
+    notes: z.string().optional().describe('Additional notes'),
+  },
+  async ({ contract_id, scheduled_date, lot_count, notes }) => {
+    try {
+      const tranche = await apiCall(`/api/contracts/${contract_id}/tranches`, {
+        method: 'POST',
+        body: JSON.stringify({ scheduled_date, lot_count, notes }),
+      });
+      return {
+        content: [{
+          type: 'text',
+          text: `Take down (tranche) created successfully:\n${JSON.stringify(tranche, null, 2)}`,
+        }],
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text',
+          text: `Error: ${error.message}`,
+        }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
   'update_tranche',
   'Update/rename a tranche (take down)',
   {
