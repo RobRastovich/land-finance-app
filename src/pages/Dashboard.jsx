@@ -85,6 +85,8 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [window, setWindow] = useState(90);
   const [allTranches, setAllTranches] = useState([]);
+  const [earnestMoney, setEarnestMoney] = useState([]);
+  const [trancheCredits, setTrancheCredits] = useState({});
   const [payments, setPayments] = useState([]);
   const [loadingTranches, setLoadingTranches] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
@@ -151,11 +153,26 @@ export default function Dashboard() {
     setLoadingTranches(true);
     Promise.all([
       Promise.all(contracts.map(c => api.getTranches(c.id).then(t => t.map(tr => ({ ...tr, contract_id: c.id }))))),
+      Promise.all(contracts.map(c => api.getEarnestMoney(c.id).then(em => em.map(e => ({ ...e, contract_id: c.id }))))),
       api.getPayments(projectId)
     ])
-      .then(([trancheResults, paymentResults]) => {
-        setAllTranches(trancheResults.flat());
+      .then(([trancheResults, emResults, paymentResults]) => {
+        const flatTranches = trancheResults.flat();
+        setAllTranches(flatTranches);
+        setEarnestMoney(emResults.flat());
         setPayments(paymentResults);
+
+        // Fetch tranche credits so the dashboard matches the cash report
+        const creditsByTranche = {};
+        const creditPromises = flatTranches.map(t =>
+          api.getTrancheEarnestCredits(t.id).then(credits => ({ trancheId: t.id, credits }))
+        );
+        Promise.all(creditPromises).then(results => {
+          results.forEach(({ trancheId, credits }) => {
+            creditsByTranche[trancheId] = credits;
+          });
+          setTrancheCredits(creditsByTranche);
+        });
       })
       .finally(() => setLoadingTranches(false));
   }, [contracts, projectId]);
@@ -215,8 +232,15 @@ export default function Dashboard() {
       const contract = contractMap[tr.contract_id];
       if (!contract) return;
       const calc = calcTranche(contract, tr);
+      const credits = trancheCredits[tr.id] || [];
+      const totalCredit = credits.reduce((sum, cr) => sum + parseFloat(cr.amount || 0), 0);
       const key = format(parseISO(tr.scheduled_date), 'MMM yy');
-      map[key] = (map[key] || 0) + calc.projected_revenue;
+      map[key] = (map[key] || 0) + calc.projected_revenue - totalCredit;
+    });
+    earnestMoney.forEach(em => {
+      if (!em.received_date) return;
+      const key = format(parseISO(em.received_date), 'MMM yy');
+      map[key] = (map[key] || 0) + parseFloat(em.amount);
     });
     return Object.entries(map)
       .sort(([a], [b]) => new Date('01 ' + a) - new Date('01 ' + b))
@@ -226,15 +250,19 @@ export default function Dashboard() {
   // KPIs
   const totalProjectedRevenue = allTranches.reduce((sum, tr) => {
     const c = contractMap[tr.contract_id];
-    return c ? sum + calcTranche(c, tr).projected_revenue : sum;
-  }, 0);
+    const credits = trancheCredits[tr.id] || [];
+    const totalCredit = credits.reduce((s, cr) => s + parseFloat(cr.amount || 0), 0);
+    return c ? sum + calcTranche(c, tr).projected_revenue - totalCredit : sum;
+  }, 0) + earnestMoney.reduce((sum, em) => sum + parseFloat(em.amount || 0), 0);
 
   const totalLots = contracts.reduce((sum, c) => sum + parseInt(c.total_qty, 10), 0);
   const totalBuilders = builders.length;
 
   const windowRevenue = upcoming.reduce((sum, tr) => {
     const c = contractMap[tr.contract_id];
-    return c ? sum + calcTranche(c, tr).projected_revenue : sum;
+    const credits = trancheCredits[tr.id] || [];
+    const totalCredit = credits.reduce((s, cr) => s + parseFloat(cr.amount || 0), 0);
+    return c ? sum + calcTranche(c, tr).projected_revenue - totalCredit : sum;
   }, 0);
 
   return (
@@ -370,7 +398,7 @@ export default function Dashboard() {
 
       {/* KPI row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPICard icon={DollarSign}  label="Total Project Revenue"  value={fmtCurrency(totalProjectedRevenue)} sub="All take downs, escalated" color="navy"  />
+        <KPICard icon={DollarSign}  label="Total Project Revenue"  value={fmtCurrency(totalProjectedRevenue)} sub="Take downs + earnest money" color="navy"  />
         <KPICard icon={Building2}   label="Active Builders"         value={totalBuilders}                      sub={`${contracts.length} contracts`}        color="blue"  />
         <KPICard icon={TrendingUp}  label="Total Lots"              value={totalLots}                          sub="Across all lot sizes"                    color="green" />
         <KPICard icon={Clock}       label={`Revenue Next ${window}d`} value={fmtCurrency(windowRevenue)}      sub={`${upcoming.length} takedowns`}          color="amber" />
@@ -380,7 +408,7 @@ export default function Dashboard() {
         {/* Revenue timeline chart */}
         <div className="xl:col-span-2 bg-white rounded-xl border border-gray-200 p-5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-gray-800">Projected Revenue by Month</h2>
+            <h2 className="font-semibold text-gray-800">Revenue by Month</h2>
           </div>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={monthlyData} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
@@ -405,7 +433,13 @@ export default function Dashboard() {
               const lots = bContracts.reduce((s, c) => s + parseInt(c.total_qty, 10), 0);
               const rev = bContracts.reduce((s, c) => {
                 const cTranches = allTranches.filter(t => t.contract_id === c.id);
-                return s + cTranches.reduce((ss, tr) => ss + calcTranche(c, tr).projected_revenue, 0);
+                const cEM = earnestMoney.filter(em => em.contract_id === c.id);
+                const trancheRev = cTranches.reduce((ss, tr) => {
+                  const credits = trancheCredits[tr.id] || [];
+                  const totalCredit = credits.reduce((s, cr) => s + parseFloat(cr.amount || 0), 0);
+                  return ss + calcTranche(c, tr).projected_revenue - totalCredit;
+                }, 0);
+                return s + trancheRev + cEM.reduce((ss, em) => ss + parseFloat(em.amount || 0), 0);
               }, 0);
               return (
                 <div key={b.id} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">

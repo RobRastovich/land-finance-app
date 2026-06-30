@@ -146,9 +146,7 @@ The LLM can then make HTTP requests to the endpoints listed above. Most LLM plat
 ### Earnest Money & Revenue Chart
 
 - `list_earnest_money` - List all earnest money entries for a contract
-- `create_earnest_money` - Record a new earnest money payment for a contract
 - `list_tranche_earnest_credits` - List earnest money credits applied to a tranche
-- `create_tranche_earnest_credit` - Apply an earnest money credit to a tranche
 - `get_revenue_chart` - Get monthly revenue and EM for a community using actual tranche and EM data (not the contract percentage)
 
 ### What-If Scenarios
