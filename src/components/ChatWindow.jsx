@@ -1,11 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Send, Bot, User, Loader2 } from 'lucide-react';
-import { sendChatMessage } from '../api/chat';
+import { Send, Bot, User, Loader2, RotateCcw } from 'lucide-react';
+import { sendChatMessage, clearSession } from '../api/chat';
 
 const WELCOME_MESSAGE = {
   role: 'assistant',
   content: 'Hi! I am your AI assistant. Ask me about your data and I can use the connected tools to help.',
 };
+
+const SESSION_KEY = (mcpServerId) => `chat_session_${mcpServerId}`;
 
 export default function ChatWindow({
   mcpServerId,
@@ -15,6 +17,7 @@ export default function ChatWindow({
   className = '',
 }) {
   const [messages, setMessages] = useState([welcomeMessage]);
+  const [sessionId, setSessionId] = useState(() => localStorage.getItem(SESSION_KEY(mcpServerId)) || null);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -36,21 +39,41 @@ export default function ChatWindow({
     }
 
     const userMessage = { role: 'user', content: text };
-    const nextMessages = [...messages, userMessage];
-    setMessages(nextMessages);
+    setMessages((prev) => [...prev, userMessage]);
     setInput('');
     setLoading(true);
     setError(null);
 
     try {
       const userToken = getUserToken ? getUserToken() : null;
-      const reply = await sendChatMessage({ messages: nextMessages, mcpServerId, userToken });
+      const { reply, sessionId: returnedSessionId } = await sendChatMessage({
+        message: text,
+        mcpServerId,
+        userToken,
+        sessionId,
+      });
+
+      if (returnedSessionId && returnedSessionId !== sessionId) {
+        setSessionId(returnedSessionId);
+        localStorage.setItem(SESSION_KEY(mcpServerId), returnedSessionId);
+      }
+
       setMessages((prev) => [...prev, { role: reply.role || 'assistant', content: reply.content || '' }]);
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleNewChat() {
+    if (sessionId) {
+      await clearSession(sessionId).catch(() => {});
+      localStorage.removeItem(SESSION_KEY(mcpServerId));
+    }
+    setSessionId(null);
+    setMessages([welcomeMessage]);
+    setError(null);
   }
 
   return (
@@ -61,6 +84,14 @@ export default function ChatWindow({
           <Bot size={18} />
           <span className="font-semibold text-sm">{title}</span>
         </div>
+        <button
+          onClick={handleNewChat}
+          className="flex items-center gap-1 text-xs text-white/70 hover:text-white transition"
+          title="Start new conversation"
+        >
+          <RotateCcw size={13} />
+          New Chat
+        </button>
       </div>
 
       {/* Messages */}
