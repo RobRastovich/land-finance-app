@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { NavLink, useLocation, useParams, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Building2, TrendingUp, DollarSign, BarChart3, FolderOpen,
-  LogOut, Menu, X, ChevronDown, ChevronRight, Plus, Users
+  LogOut, Menu, X, ChevronDown, ChevronRight, Plus, Users, MessageSquare
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import ChatWidget from './ChatWidget';
@@ -29,7 +29,10 @@ export default function Layout({ children, signOut, user }) {
 
   const currentProject = projects.find(p => p.id === communityId);
   const activeSub = SUB_NAV.find(n => location.pathname.includes(`/${n.path}`));
-  const pageTitle = activeSub?.label || currentProject?.name || 'ACREs';
+  const pageTitle = activeSub?.label
+    || (location.pathname === '/chat' ? 'AI Chat' : null)
+    || currentProject?.name
+    || 'ACREs';
 
   function handleCommunityClick(projectId) {
     if (expanded === projectId) {
@@ -145,6 +148,18 @@ export default function Layout({ children, signOut, user }) {
               {sidebarOpen && <span>User Management</span>}
             </NavLink>
           )}
+
+          {/* Chat link */}
+          <NavLink
+            to="/chat"
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-3 py-2 mt-3 rounded-lg transition text-sm font-medium w-full
+              ${isActive ? 'bg-white/15 text-white' : 'text-blue-200 hover:bg-white/10 hover:text-white'}`
+            }
+          >
+            <MessageSquare size={16} className="shrink-0" />
+            {sidebarOpen && <span>AI Chat</span>}
+          </NavLink>
         </nav>
 
         {/* User / Sign out */}
@@ -181,11 +196,13 @@ export default function Layout({ children, signOut, user }) {
         </main>
       </div>
 
-      <ChatWidget
-        mcpServerId={process.env.REACT_APP_CHAT_MCP_SERVER_ID}
-        getUserToken={() => localStorage.getItem('token')}
-        title="ACREs Assistant"
-      />
+      {location.pathname !== '/chat' && (
+        <ChatWidget
+          mcpServerId={process.env.REACT_APP_CHAT_MCP_SERVER_ID}
+          getUserToken={() => localStorage.getItem('token')}
+          title="ACREs Assistant"
+        />
+      )}
     </div>
   );
 }

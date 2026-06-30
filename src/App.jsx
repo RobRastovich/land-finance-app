@@ -14,6 +14,7 @@ import Login from './pages/Login';
 import NewCommunity from './pages/NewCommunity';
 import Users from './pages/Users';
 import Register from './pages/Register';
+import ChatPage from './pages/ChatPage';
 import DefaultRedirect from './components/DefaultRedirect';
 
 const IS_LOCAL = process.env.REACT_APP_LOCAL_DEV === 'true';
@@ -66,6 +67,7 @@ export default function App() {
           <Route path="/" element={<DefaultRedirect />} />
           <Route path="/communities/new" element={<Layout signOut={signOut} user={user}><NewCommunity /></Layout>} />
           <Route path="/users" element={<Layout signOut={signOut} user={user}><Users /></Layout>} />
+          <Route path="/chat" element={<Layout signOut={signOut} user={user}><ChatPage /></Layout>} />
           <Route path="/communities/:communityId" element={<Layout signOut={signOut} user={user}><CommunityRoute /></Layout>}>
             <Route index element={<Navigate to="dashboard" replace />} />
             <Route path="dashboard" element={<ProtectedRoute module="dashboard"><Dashboard /></ProtectedRoute>} />
