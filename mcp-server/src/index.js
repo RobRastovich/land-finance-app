@@ -641,6 +641,66 @@ server.tool(
   }
 );
 
+// ── Documents Tools ────────────────────────────────────────
+
+server.tool(
+  'list_documents',
+  'List all documents attached to a community',
+  {
+    community_id: z.string().describe('The UUID of the community'),
+  },
+  async ({ community_id }) => {
+    try {
+      const documents = await apiCall(`/api/projects/${community_id}/documents`);
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify(documents, null, 2),
+        }],
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text',
+          text: `Error: ${error.message}`,
+        }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  'get_document_download_url',
+  'Get a presigned download URL for a document attached to a community',
+  {
+    community_id: z.string().describe('The UUID of the community'),
+    key: z.string().describe('The S3 key of the document (returned by list_documents)'),
+  },
+  async ({ community_id, key }) => {
+    try {
+      const result = await apiCall(`/api/projects/${community_id}/documents/download-url`, {
+        method: 'POST',
+        body: JSON.stringify({ key }),
+      });
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify(result, null, 2),
+        }],
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text',
+          text: `Error: ${error.message}`,
+        }],
+        isError: true,
+      };
+    }
+  }
+);
+
 // ── What-If Scenario Tools ─────────────────────────────────
 
 server.tool(

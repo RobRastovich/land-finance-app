@@ -11,6 +11,7 @@ The API server provides endpoints for:
 - **Tranches (Take Downs)**: List and create tranches for contracts
 - **Payments**: List and create payment records
 - **Cash Flow**: Get cash flow summaries
+- **Documents**: List and download documents attached to a community
 - **What-If Scenarios**: Calculate projected revenue with different parameters
 
 ## Installation
@@ -142,6 +143,11 @@ The LLM can then make HTTP requests to the endpoints listed above. Most LLM plat
 ### Cash Flow
 
 - `get_cash_flow` - Get cash flow summary for a community
+
+### Documents
+
+- `list_documents` - List all documents attached to a community
+- `get_document_download_url` - Get a presigned download URL for a document
 
 ### Earnest Money & Revenue Chart
 

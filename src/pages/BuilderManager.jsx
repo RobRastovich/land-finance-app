@@ -261,7 +261,7 @@ function TrancheForm({ initial, contract, existingTranches, onSave, onClose }) {
       <div className="flex gap-3 justify-end pt-2">
         <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg border border-gray-300 text-sm hover:bg-gray-50">Cancel</button>
         <button type="submit" className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#1F4E79] text-white text-sm hover:bg-[#153452]">
-          <Save size={14} /> Save Tranche
+          <Save size={14} /> Save Take Down
         </button>
       </div>
     </form>
@@ -503,7 +503,7 @@ function ContractCard({ contract, builders, onEditContract, onDeleteContract, on
       )}
 
       {(showTrancheForm || editTranche) && (
-        <Modal title={editTranche ? 'Edit Take Down' : 'Add Take Down'} onClose={() => { setShowTrancheForm(false); setEditTranche(null); }}>
+        <Modal key={editTranche?.id || 'new'} title={editTranche ? 'Edit Take Down' : 'Add Take Down'} onClose={() => { setShowTrancheForm(false); setEditTranche(null); }}>
           <TrancheForm
             initial={editTranche}
             contract={contract}

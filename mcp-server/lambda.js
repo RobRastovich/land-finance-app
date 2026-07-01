@@ -197,6 +197,23 @@ async function handleRequest(event) {
       });
     }
 
+    // Documents endpoints
+    if (path.match(/^\/api\/communities\/[^/]+\/documents$/) && httpMethod === 'GET') {
+      const communityId = path.split('/')[3];
+      const documents = await apiCall(`/api/projects/${communityId}/documents`);
+      return createResponse(200, documents);
+    }
+
+    if (path.match(/^\/api\/communities\/[^/]+\/documents\/download-url$/) && httpMethod === 'POST') {
+      const communityId = path.split('/')[3];
+      const { key } = parsedBody;
+      const result = await apiCall(`/api/projects/${communityId}/documents/download-url`, {
+        method: 'POST',
+        body: JSON.stringify({ key }),
+      });
+      return createResponse(200, result);
+    }
+
     // What-If Scenario endpoint
     if (path === '/api/what-if/revenue' && httpMethod === 'POST') {
       const { ff_width, ff_price, lot_count, escalator_rate = 0, months = 0 } = parsedBody;
