@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url);
+const { McpServer } = require('@modelcontextprotocol/sdk/server/mcp.js');
+const { StdioServerTransport } = require('@modelcontextprotocol/sdk/server/stdio.js');
 
 // Configuration - these should be set via environment variables
 const API_ENDPOINT = process.env.LAND_FINANCE_API_ENDPOINT || 'http://localhost:4000';
@@ -687,6 +690,50 @@ server.tool(
         content: [{
           type: 'text',
           text: JSON.stringify(result, null, 2),
+        }],
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text',
+          text: `Error: ${error.message}`,
+        }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  'read_document',
+  'Read the extracted text content of a document attached to a community (PDF or text files). Text is extracted by the backend, so this is safe for large PDFs.',
+  {
+    community_id: z.string().describe('The UUID of the community'),
+    key: z.string().describe('The S3 key of the document (returned by list_documents)'),
+  },
+  async ({ community_id, key }) => {
+    try {
+      const { text, name } = await apiCall(`/api/projects/${community_id}/documents/${encodeURIComponent(key)}/text`);
+
+      if (!text || text.length === 0) {
+        return {
+          content: [{
+            type: 'text',
+            text: `No text could be extracted from ${name || key}.`,
+          }],
+        };
+      }
+
+      // Truncate very large documents to avoid context limits
+      const maxChars = 100000;
+      const truncated = text.length > maxChars
+        ? text.slice(0, maxChars) + '\n\n[Document truncated due to length]'
+        : text;
+
+      return {
+        content: [{
+          type: 'text',
+          text: `Document: ${name || key}\n\n${truncated}`,
         }],
       };
     } catch (error) {

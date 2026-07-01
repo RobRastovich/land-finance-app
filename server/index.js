@@ -7,6 +7,7 @@ const jwt      = require('jsonwebtoken');
 const bcrypt   = require('bcryptjs');
 const { S3Client, PutObjectCommand, ListObjectsV2Command, GetObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
+const pdfParse = require('pdf-parse');
 
 const app  = express();
 const PORT = process.env.PORT || 4000;
@@ -86,6 +87,19 @@ pool.on('error', (err) => console.error('PG pool error:', err));
   } catch (e) {
     if (e.code !== '42701') {
       console.error('Migration error (additional_escalator_rate):', e.message);
+    }
+  }
+
+  // Add document text extraction column
+  try {
+    await pool.query(`
+      ALTER TABLE documents
+      ADD COLUMN IF NOT EXISTS text_content TEXT
+    `);
+    console.log('Migration: documents.text_content column added/updated');
+  } catch (e) {
+    if (e.code !== '42701') {
+      console.error('Migration error (text_content):', e.message);
     }
   }
 })();
@@ -297,7 +311,7 @@ app.put('/api/projects/:id', async (req, res) => {
   } catch (e) { res.status(500).json({ message: e.message }); }
 });
 
-// Duplicate a community (copies builders + contracts + tranches only)
+// Duplicate a community (copies builders + contracts + tranches + earnest money)
 app.post('/api/projects/:id/duplicate', async (req, res) => {
   const client = await pool.connect();
   try {
@@ -356,6 +370,18 @@ app.post('/api/projects/:id/duplicate', async (req, res) => {
           [newContract.id, t.tranche_number, t.scheduled_date, t.lot_count, t.additional_escalator_rate || 0, t.notes]
         );
         await recalcTranche(newTranche, newContract);
+      }
+
+      // Copy earnest money entries for this contract
+      const { rows: oldEarnestMoney } = await client.query(
+        'SELECT * FROM earnest_money_revenue WHERE contract_id=$1 ORDER BY received_date', [c.id]
+      );
+      for (const em of oldEarnestMoney) {
+        await client.query(
+          `INSERT INTO earnest_money_revenue (contract_id, amount, received_date, notes)
+           VALUES ($1,$2,$3,$4)`,
+          [newContract.id, em.amount, em.received_date, em.notes]
+        );
       }
     }
 
@@ -1026,6 +1052,30 @@ app.get('/api/my/communities', authMiddleware, async (req, res) => {
   } catch (e) { res.status(500).json({ message: e.message }); }
 });
 
+// ── Document text extraction helper ───────────────────────────
+async function extractDocumentText(key) {
+  try {
+    const command = new GetObjectCommand({ Bucket: S3_BUCKET, Key: key });
+    const response = await s3.send(command);
+    const chunks = [];
+    for await (const chunk of response.Body) {
+      chunks.push(chunk);
+    }
+    const buffer = Buffer.concat(chunks);
+
+    if (key.toLowerCase().endsWith('.pdf')) {
+      const pdfData = await pdfParse(buffer);
+      return pdfData.text || '';
+    }
+
+    // Plain text files
+    return buffer.toString('utf-8');
+  } catch (error) {
+    console.error('Document text extraction error:', error.message);
+    throw error;
+  }
+}
+
 // ── Routes: Documents (S3) ──────────────────────────────────────
 // Get presigned upload URL
 app.post('/api/projects/:id/documents/upload-url', authMiddleware, async (req, res) => {
@@ -1053,13 +1103,22 @@ app.post('/api/projects/:id/documents/register', authMiddleware, async (req, res
   const { key, name, size, content_type } = req.body;
   if (!key || !name) return res.status(400).json({ message: 'key and name are required' });
   try {
+    // Extract text from the uploaded document
+    let textContent = null;
+    try {
+      textContent = await extractDocumentText(key);
+    } catch (extractError) {
+      console.error('Failed to extract text during register:', extractError.message);
+      textContent = null;
+    }
+
     const { rows } = await pool.query(
-      `INSERT INTO documents (project_id, key, name, size, content_type, uploaded_by)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO documents (project_id, key, name, size, content_type, uploaded_by, text_content)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        ON CONFLICT (project_id, key) DO UPDATE
-       SET name = EXCLUDED.name, size = EXCLUDED.size, content_type = EXCLUDED.content_type
+       SET name = EXCLUDED.name, size = EXCLUDED.size, content_type = EXCLUDED.content_type, text_content = EXCLUDED.text_content
        RETURNING *`,
-      [req.params.id, key, name, size, content_type, req.user.id]
+      [req.params.id, key, name, size, content_type, req.user.id, textContent]
     );
     res.json(rows[0]);
   } catch (e) { res.status(500).json({ message: e.message }); }
@@ -1082,6 +1141,37 @@ app.get('/api/projects/:id/documents', authMiddleware, async (req, res) => {
       lastModified: doc.uploaded_at,
     }));
     res.json(files);
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
+// Get extracted text content for a document
+app.get('/api/projects/:id/documents/:key/text', authMiddleware, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT key, name, text_content FROM documents
+       WHERE project_id = $1 AND key = $2`,
+      [req.params.id, req.params.key]
+    );
+    if (rows.length === 0) return res.status(404).json({ message: 'Document not found' });
+
+    const doc = rows[0];
+    let textContent = doc.text_content;
+
+    // If text hasn't been extracted yet, try extracting it now
+    if (!textContent) {
+      try {
+        textContent = await extractDocumentText(doc.key);
+        await pool.query(
+          'UPDATE documents SET text_content = $1 WHERE project_id = $2 AND key = $3',
+          [textContent, req.params.id, doc.key]
+        );
+      } catch (extractError) {
+        console.error('Failed to extract text on demand:', extractError.message);
+        return res.status(500).json({ message: `Failed to extract text: ${extractError.message}` });
+      }
+    }
+
+    res.json({ key: doc.key, name: doc.name, text: textContent });
   } catch (e) { res.status(500).json({ message: e.message }); }
 });
 

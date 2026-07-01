@@ -214,6 +214,13 @@ async function handleRequest(event) {
       return createResponse(200, result);
     }
 
+    if (path.match(/^\/api\/communities\/[^/]+\/documents\/[^/]+\/text$/) && httpMethod === 'GET') {
+      const communityId = path.split('/')[3];
+      const key = decodeURIComponent(path.split('/')[5]);
+      const result = await apiCall(`/api/projects/${communityId}/documents/${encodeURIComponent(key)}/text`);
+      return createResponse(200, result);
+    }
+
     // What-If Scenario endpoint
     if (path === '/api/what-if/revenue' && httpMethod === 'POST') {
       const { ff_width, ff_price, lot_count, escalator_rate = 0, months = 0 } = parsedBody;
