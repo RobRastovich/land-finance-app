@@ -1,0 +1,2 @@
+ALTER TABLE tranches
+ADD COLUMN IF NOT EXISTS additional_escalator_rate NUMERIC(6,4) NOT NULL DEFAULT 0;

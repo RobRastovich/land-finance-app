@@ -174,7 +174,7 @@ function ContractForm({ initial, builders, onSave, onClose }) {
 
 // ── Tranche Form ─────────────────────────────────────────────
 function TrancheForm({ initial, contract, existingTranches, onSave, onClose }) {
-  const [form, setForm] = useState(initial || { scheduled_date: '', lot_count: '', notes: '' });
+  const [form, setForm] = useState(initial || { scheduled_date: '', lot_count: '', additional_escalator_rate: 0, notes: '' });
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
 
   // When editing, ensure date is in YYYY-MM-DD format for date input
@@ -187,7 +187,11 @@ function TrancheForm({ initial, contract, existingTranches, onSave, onClose }) {
     }
   }, [initial]);
   const preview = form.scheduled_date && form.lot_count
-    ? calcTranche(contract, { scheduled_date: form.scheduled_date, lot_count: parseInt(form.lot_count) })
+    ? calcTranche(contract, {
+        scheduled_date: form.scheduled_date,
+        lot_count: parseInt(form.lot_count),
+        additional_escalator_rate: form.additional_escalator_rate || 0
+      })
     : null;
 
   // Calculate remaining lots available
@@ -217,8 +221,24 @@ function TrancheForm({ initial, contract, existingTranches, onSave, onClose }) {
           </label>
         </div>
       </div>
+      <div className="grid grid-cols-2 gap-4">
+        <Input
+          label="Additional Escalator (% per year)"
+          value={parseFloat(form.additional_escalator_rate || 0) * 100}
+          onChange={e => setForm(f => ({ ...f, additional_escalator_rate: e.target.value / 100 }))}
+          type="number"
+          step="0.01"
+          min="0"
+        />
+        <div>
+          <span className="text-xs font-medium text-gray-600 mb-1 block">Effective Escalator</span>
+          <div className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 font-semibold text-blue-700">
+            {fmtPct(parseFloat(contract.escalator_rate || 0) + parseFloat(form.additional_escalator_rate || 0))}
+          </div>
+        </div>
+      </div>
       {preview && (
-        <div className="grid grid-cols-3 gap-3 bg-blue-50 rounded-lg p-3">
+        <div className="grid grid-cols-4 gap-3 bg-blue-50 rounded-lg p-3">
           <div className="text-center">
             <div className="text-xs text-gray-500">Adj. $/Lot</div>
             <div className="text-sm font-semibold text-gray-800">{fmtCurrency(preview.adj_lot_price)}</div>
@@ -230,6 +250,10 @@ function TrancheForm({ initial, contract, existingTranches, onSave, onClose }) {
           <div className="text-center">
             <div className="text-xs text-gray-500">Earnest Money</div>
             <div className="text-sm font-semibold text-blue-700">{fmtCurrency(preview.projected_em)}</div>
+          </div>
+          <div className="text-center">
+            <div className="text-xs text-gray-500">Months Escalated</div>
+            <div className="text-sm font-semibold text-gray-800">{preview.months_escalated}</div>
           </div>
         </div>
       )}
@@ -389,19 +413,20 @@ function ContractCard({ contract, builders, onEditContract, onDeleteContract, on
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-[#1F4E79] text-white text-xs">
-                    {['Type','Date','Lots','Base $/Lot','Months Escal.','Adj $/Lot','EM Credit','Revenue',''].map(h => (
+                    {['Type','Date','Lots','Add\'l Escal %','Base $/Lot','Months Escal.','Adj $/Lot','EM Credit','Revenue',''].map(h => (
                       <th key={h} className="px-3 py-2 text-right first:text-left last:text-center font-medium">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {tranches.length === 0 && earnestMoney.length === 0 && (
-                    <tr><td colSpan={9} className="text-center py-6 text-gray-400 italic text-xs">No revenue entries yet. Add one below.</td></tr>
+                    <tr><td colSpan={10} className="text-center py-6 text-gray-400 italic text-xs">No revenue entries yet. Add one below.</td></tr>
                   )}
                   {earnestMoney.map((em, i) => (
                     <tr key={em.id} className={i % 2 === 0 ? 'bg-white' : 'bg-green-50/40'}>
                       <td className="px-3 py-2 text-green-700 font-medium">EM</td>
                       <td className="px-3 py-2 text-right">{fmtDate(em.received_date)}</td>
+                      <td className="px-3 py-2 text-gray-400">—</td>
                       <td className="px-3 py-2 text-gray-400">—</td>
                       <td className="px-3 py-2 text-gray-400">—</td>
                       <td className="px-3 py-2 text-gray-400">—</td>
@@ -426,6 +451,7 @@ function ContractCard({ contract, builders, onEditContract, onDeleteContract, on
                         <td className="px-3 py-2 text-gray-600 font-medium">Take Down</td>
                         <td className="px-3 py-2 text-right">{fmtDate(tr.scheduled_date)}</td>
                         <td className="px-3 py-2 text-right">{tr.lot_count}</td>
+                        <td className="px-3 py-2 text-right">{fmtPct(parseFloat(tr.additional_escalator_rate || 0))}</td>
                         <td className="px-3 py-2 text-right">{fmtCurrency(calc.base_lot_price)}</td>
                         <td className="px-3 py-2 text-right">{calc.months_escalated}</td>
                         <td className="px-3 py-2 text-right">{fmtCurrency(calc.adj_lot_price, 2)}</td>
@@ -448,8 +474,7 @@ function ContractCard({ contract, builders, onEditContract, onDeleteContract, on
                   })}
                   {(tranches.length > 0 || earnestMoney.length > 0) && (
                     <tr className="bg-blue-900 text-white text-xs font-bold">
-                      <td className="px-3 py-2" colSpan={4}>TOTALS</td>
-                      <td />
+                      <td className="px-3 py-2" colSpan={5}>TOTALS</td>
                       <td />
                       <td className="px-3 py-2 text-right">{fmtCurrency(totalEM)}</td>
                       <td className="px-3 py-2 text-right">{fmtCurrency(totalRevenue)}</td>

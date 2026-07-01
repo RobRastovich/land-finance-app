@@ -367,13 +367,14 @@ server.tool(
     contract_id: z.string().describe('The UUID of the contract'),
     scheduled_date: z.string().describe('Scheduled date for the take down (YYYY-MM-DD)'),
     lot_count: z.number().describe('Number of lots in this take down'),
+    additional_escalator_rate: z.number().optional().describe('Additional annual escalator rate as decimal (e.g., 0.03 for 3%), added to the contract escalator'),
     notes: z.string().optional().describe('Additional notes'),
   },
-  async ({ contract_id, scheduled_date, lot_count, notes }) => {
+  async ({ contract_id, scheduled_date, lot_count, additional_escalator_rate, notes }) => {
     try {
       const tranche = await apiCall(`/api/contracts/${contract_id}/tranches`, {
         method: 'POST',
-        body: JSON.stringify({ scheduled_date, lot_count, notes }),
+        body: JSON.stringify({ scheduled_date, lot_count, additional_escalator_rate, notes }),
       });
       return {
         content: [{
@@ -400,13 +401,14 @@ server.tool(
     tranche_id: z.string().describe('The UUID of the tranche'),
     scheduled_date: z.string().optional().describe('New scheduled date (YYYY-MM-DD)'),
     lot_count: z.number().optional().describe('New lot count'),
+    additional_escalator_rate: z.number().optional().describe('Additional annual escalator rate as decimal (e.g., 0.03 for 3%), added to the contract escalator'),
     notes: z.string().optional().describe('New notes'),
   },
-  async ({ tranche_id, scheduled_date, lot_count, notes }) => {
+  async ({ tranche_id, scheduled_date, lot_count, additional_escalator_rate, notes }) => {
     try {
       const tranche = await apiCall(`/api/tranches/${tranche_id}`, {
         method: 'PUT',
-        body: JSON.stringify({ scheduled_date, lot_count, notes }),
+        body: JSON.stringify({ scheduled_date, lot_count, additional_escalator_rate, notes }),
       });
       return {
         content: [{

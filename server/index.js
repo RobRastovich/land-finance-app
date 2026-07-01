@@ -75,6 +75,19 @@ pool.on('error', (err) => console.error('PG pool error:', err));
   } catch (e) {
     console.error('Migration error (tranche_earnest_credits):', e.message);
   }
+
+  // Add per-takedown additional escalator rate column
+  try {
+    await pool.query(`
+      ALTER TABLE tranches
+      ADD COLUMN IF NOT EXISTS additional_escalator_rate NUMERIC(6,4) NOT NULL DEFAULT 0
+    `);
+    console.log('Migration: tranches.additional_escalator_rate column added/updated');
+  } catch (e) {
+    if (e.code !== '42701') {
+      console.error('Migration error (additional_escalator_rate):', e.message);
+    }
+  }
 })();
 
 // ── JWT auth middleware ───────────────────────────────────────
@@ -229,9 +242,10 @@ function calcEscalation(baseLotPrice, annualRate, escalatorStart, takedownDate) 
 
 async function recalcTranche(tranche, contract) {
   const baseLotPrice = parseFloat(contract.ff_width) * parseFloat(contract.ff_price);
+  const effectiveRate = parseFloat(contract.escalator_rate) + parseFloat(tranche.additional_escalator_rate || 0);
   const { months, adjPrice } = calcEscalation(
     baseLotPrice,
-    parseFloat(contract.escalator_rate),
+    effectiveRate,
     contract.escalator_start,
     tranche.scheduled_date
   );
@@ -243,9 +257,10 @@ async function recalcTranche(tranche, contract) {
   await pool.query(
     `UPDATE tranches SET
        base_lot_price = $1, months_escalated = $2, adj_lot_price = $3,
-       projected_revenue = $4, projected_em = $5, escalator_lift = $6
-     WHERE id = $7`,
-    [baseLotPrice, months, adjPrice, revenue, em, lift, tranche.id]
+       projected_revenue = $4, projected_em = $5, escalator_lift = $6,
+       additional_escalator_rate = $7
+     WHERE id = $8`,
+    [baseLotPrice, months, adjPrice, revenue, em, lift, tranche.additional_escalator_rate || 0, tranche.id]
   );
 }
 
@@ -336,9 +351,9 @@ app.post('/api/projects/:id/duplicate', async (req, res) => {
       );
       for (const t of oldTranches) {
         const { rows: [newTranche] } = await client.query(
-          `INSERT INTO tranches (contract_id, tranche_number, scheduled_date, lot_count, notes)
-           VALUES ($1,$2,$3,$4,$5) RETURNING *`,
-          [newContract.id, t.tranche_number, t.scheduled_date, t.lot_count, t.notes]
+          `INSERT INTO tranches (contract_id, tranche_number, scheduled_date, lot_count, additional_escalator_rate, notes)
+           VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+          [newContract.id, t.tranche_number, t.scheduled_date, t.lot_count, t.additional_escalator_rate || 0, t.notes]
         );
         await recalcTranche(newTranche, newContract);
       }
@@ -493,9 +508,9 @@ app.post('/api/contracts/:id/duplicate', async (req, res) => {
     );
     for (const t of tranches) {
       const { rows: [newTranche] } = await client.query(
-        `INSERT INTO tranches (contract_id, tranche_number, scheduled_date, lot_count, notes)
-         VALUES ($1,$2,$3,$4,$5) RETURNING *`,
-        [newContract.id, t.tranche_number, t.scheduled_date, t.lot_count, t.notes]
+        `INSERT INTO tranches (contract_id, tranche_number, scheduled_date, lot_count, additional_escalator_rate, notes)
+         VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+        [newContract.id, t.tranche_number, t.scheduled_date, t.lot_count, t.additional_escalator_rate || 0, t.notes]
       );
       await recalcTranche(newTranche, newContract);
     }
@@ -523,7 +538,7 @@ app.get('/api/contracts/:contractId/tranches', async (req, res) => {
 });
 
 app.post('/api/contracts/:contractId/tranches', async (req, res) => {
-  const { scheduled_date, lot_count, notes } = req.body;
+  const { scheduled_date, lot_count, additional_escalator_rate, notes } = req.body;
   try {
     // Get next tranche number
     const { rows: [{ max_num }] } = await pool.query(
@@ -533,9 +548,9 @@ app.post('/api/contracts/:contractId/tranches', async (req, res) => {
     const trancheNum = parseInt(max_num, 10) + 1;
 
     const { rows } = await pool.query(
-      `INSERT INTO tranches (contract_id, tranche_number, scheduled_date, lot_count, notes)
-       VALUES ($1,$2,$3,$4,$5) RETURNING *`,
-      [req.params.contractId, trancheNum, scheduled_date, lot_count, notes]
+      `INSERT INTO tranches (contract_id, tranche_number, scheduled_date, lot_count, additional_escalator_rate, notes)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [req.params.contractId, trancheNum, scheduled_date, lot_count, additional_escalator_rate || 0, notes]
     );
     const tranche = rows[0];
     // Get contract for recalc
@@ -547,11 +562,11 @@ app.post('/api/contracts/:contractId/tranches', async (req, res) => {
 });
 
 app.put('/api/tranches/:id', async (req, res) => {
-  const { scheduled_date, lot_count, notes } = req.body;
+  const { scheduled_date, lot_count, additional_escalator_rate, notes } = req.body;
   try {
     const { rows } = await pool.query(
-      `UPDATE tranches SET scheduled_date=$1, lot_count=$2, notes=$3 WHERE id=$4 RETURNING *`,
-      [scheduled_date, lot_count, notes, req.params.id]
+      `UPDATE tranches SET scheduled_date=$1, lot_count=$2, additional_escalator_rate=$3, notes=$4 WHERE id=$5 RETURNING *`,
+      [scheduled_date, lot_count, additional_escalator_rate || 0, notes, req.params.id]
     );
     const tranche = rows[0];
     const { rows: [contract] } = await pool.query('SELECT * FROM lot_contracts WHERE id=$1', [tranche.contract_id]);
@@ -583,9 +598,9 @@ app.post('/api/tranches/:id/duplicate', async (req, res) => {
     const trancheNum = parseInt(max_num, 10) + 1;
 
     const { rows } = await pool.query(
-      `INSERT INTO tranches (contract_id, tranche_number, scheduled_date, lot_count, notes)
-       VALUES ($1,$2,$3,$4,$5) RETURNING *`,
-      [original.contract_id, trancheNum, original.scheduled_date, original.lot_count, original.notes]
+      `INSERT INTO tranches (contract_id, tranche_number, scheduled_date, lot_count, additional_escalator_rate, notes)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [original.contract_id, trancheNum, original.scheduled_date, original.lot_count, original.additional_escalator_rate || 0, original.notes]
     );
     const tranche = rows[0];
     const { rows: [contract] } = await pool.query('SELECT * FROM lot_contracts WHERE id=$1', [original.contract_id]);

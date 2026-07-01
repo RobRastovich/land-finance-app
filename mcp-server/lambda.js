@@ -132,10 +132,10 @@ async function handleRequest(event) {
 
     if (path.match(/^\/api\/contracts\/[^/]+\/tranches$/) && httpMethod === 'POST') {
       const contractId = path.split('/')[3];
-      const { tranche_number, scheduled_date, lot_count } = parsedBody;
+      const { tranche_number, scheduled_date, lot_count, additional_escalator_rate } = parsedBody;
       const tranche = await apiCall(`/api/contracts/${contractId}/tranches`, {
         method: 'POST',
-        body: JSON.stringify({ tranche_number, scheduled_date, lot_count }),
+        body: JSON.stringify({ tranche_number, scheduled_date, lot_count, additional_escalator_rate }),
       });
       return createResponse(201, tranche);
     }

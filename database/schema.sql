@@ -64,6 +64,7 @@ CREATE TABLE tranches (
   tranche_number  INTEGER      NOT NULL,
   scheduled_date  DATE         NOT NULL,
   lot_count       INTEGER      NOT NULL,
+  additional_escalator_rate NUMERIC(6,4) NOT NULL DEFAULT 0,  -- per-takedown extra annual decimal
   -- calculated fields (stored for reporting speed, recomputed on save)
   base_lot_price  NUMERIC(12,2),
   months_escalated INTEGER,

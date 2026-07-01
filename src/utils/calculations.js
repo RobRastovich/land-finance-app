@@ -19,9 +19,10 @@ export function calcTranche(contract, tranche) {
   const ffWidth   = parseFloat(contract.ff_width);
   const ffPrice   = parseFloat(contract.ff_price);
   const basePrice = ffWidth * ffPrice;
+  const effectiveRate = parseFloat(contract.escalator_rate) + parseFloat(tranche.additional_escalator_rate || 0);
   const adjPrice  = calcAdjPrice(
     basePrice,
-    parseFloat(contract.escalator_rate),
+    effectiveRate,
     contract.escalator_start,
     tranche.scheduled_date
   );
