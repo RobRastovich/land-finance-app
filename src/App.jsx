@@ -10,6 +10,7 @@ import CashFlow from './pages/CashFlow';
 import Payments from './pages/Payments';
 import ProfitLoss from './pages/ProfitLoss';
 import Documents from './pages/Documents';
+import ProgramOutline from './pages/ProgramOutline';
 import Login from './pages/Login';
 import NewCommunity from './pages/NewCommunity';
 import Users from './pages/Users';
@@ -76,6 +77,7 @@ export default function App() {
             <Route path="payments"  element={<ProtectedRoute module="payments"><Payments /></ProtectedRoute>} />
             <Route path="pnl"       element={<ProtectedRoute module="pnl"><ProfitLoss /></ProtectedRoute>} />
             <Route path="documents" element={<ProtectedRoute module="documents"><Documents /></ProtectedRoute>} />
+            <Route path="program-outline" element={<ProtectedRoute module="program_outline"><ProgramOutline /></ProtectedRoute>} />
           </Route>
           <Route path="*" element={<DefaultRedirect />} />
         </Routes>

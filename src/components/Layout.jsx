@@ -2,18 +2,19 @@ import React, { useState } from 'react';
 import { NavLink, useLocation, useParams, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Building2, TrendingUp, DollarSign, BarChart3, FolderOpen,
-  LogOut, Menu, X, ChevronDown, ChevronRight, Plus, Users, MessageSquare
+  ClipboardList, LogOut, Menu, X, ChevronDown, ChevronRight, Plus, Users, MessageSquare
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import ChatWidget from './ChatWidget';
 
 const SUB_NAV = [
-  { path: 'dashboard', icon: LayoutDashboard, label: 'Dashboard'       },
-  { path: 'builders',  icon: Building2,       label: 'Builder Manager' },
-  { path: 'cashflow',  icon: TrendingUp,      label: 'Cash Flow'       },
-  { path: 'payments',  icon: DollarSign,      label: 'Payments'        },
-  { path: 'pnl',       icon: BarChart3,       label: 'P&L'             },
-  { path: 'documents', icon: FolderOpen,      label: 'Documents'       },
+  { path: 'dashboard',       icon: LayoutDashboard, label: 'Dashboard'        },
+  { path: 'program-outline', icon: ClipboardList,   label: 'Program Outline'  },
+  { path: 'builders',        icon: Building2,       label: 'Builder Manager'  },
+  { path: 'cashflow',        icon: TrendingUp,      label: 'Cash Flow'        },
+  { path: 'payments',        icon: DollarSign,      label: 'Payments'         },
+  { path: 'pnl',             icon: BarChart3,       label: 'P&L'              },
+  { path: 'documents',       icon: FolderOpen,      label: 'Documents'        },
 ];
 
 export default function Layout({ children, signOut, user }) {

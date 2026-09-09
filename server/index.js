@@ -33,10 +33,14 @@ pool.on('error', (err) => console.error('PG pool error:', err));
 (async () => {
   try {
     await pool.query(`
-      ALTER TABLE users ADD COLUMN IF NOT EXISTS module_permissions JSONB DEFAULT '{"dashboard":true,"builder_manager":true,"cash_flow":true,"payments":true,"pnl":true,"documents":true}'::jsonb
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS module_permissions JSONB DEFAULT '{"dashboard":true,"builder_manager":true,"cash_flow":true,"payments":true,"pnl":true,"documents":true,"program_outline":true}'::jsonb
     `);
     await pool.query(`
-      UPDATE users SET module_permissions = '{"dashboard":true,"builder_manager":true,"cash_flow":true,"payments":true,"pnl":true,"documents":true}'::jsonb WHERE module_permissions IS NULL
+      UPDATE users SET module_permissions = '{"dashboard":true,"builder_manager":true,"cash_flow":true,"payments":true,"pnl":true,"documents":true,"program_outline":true}'::jsonb WHERE module_permissions IS NULL
+    `);
+    await pool.query(`
+      UPDATE users SET module_permissions = COALESCE(module_permissions, '{}'::jsonb) || '{"program_outline":true}'::jsonb
+      WHERE NOT (COALESCE(module_permissions, '{}'::jsonb) ? 'program_outline')
     `);
     console.log('Migration: module_permissions column added/updated');
   } catch (e) {
@@ -101,6 +105,44 @@ pool.on('error', (err) => console.error('PG pool error:', err));
     if (e.code !== '42701') {
       console.error('Migration error (text_content):', e.message);
     }
+  }
+
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS program_outlines (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        project_id UUID NOT NULL UNIQUE REFERENCES projects(id) ON DELETE CASCADE,
+        lot_cost NUMERIC(14,2),
+        lot_closing NUMERIC(14,2),
+        lot_marketing_fee NUMERIC(14,2),
+        lot_amenity_fee NUMERIC(14,2),
+        other_development_fee NUMERIC(14,2),
+        lot_interest NUMERIC(14,2),
+        land_bank_interest NUMERIC(14,2),
+        area_cost_geotech NUMERIC(14,2),
+        other_development_costs NUMERIC(14,2),
+        hoa_dues NUMERIC(14,2),
+        land_notes TEXT,
+        pid TEXT,
+        hhl_incentive NUMERIC(14,2),
+        incentive NUMERIC(14,2),
+        plan_line_up TEXT,
+        specifications TEXT,
+        asp TEXT,
+        target_margin TEXT,
+        ideal_starting_price TEXT,
+        builders_competition_graph TEXT,
+        sales_notes TEXT,
+        erosion TEXT,
+        city_requirements TEXT,
+        construction_notes TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+    console.log('Migration: program_outlines table created');
+  } catch (e) {
+    console.error('Migration error (program_outlines):', e.message);
   }
 })();
 
@@ -1183,6 +1225,64 @@ app.post('/api/projects/:id/documents/download-url', authMiddleware, async (req,
     const command = new GetObjectCommand({ Bucket: S3_BUCKET, Key: key });
     const downloadUrl = await getSignedUrl(s3, command, { expiresIn: 3600 });
     res.json({ downloadUrl });
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
+const PROGRAM_OUTLINE_FIELDS = [
+  'lot_cost', 'lot_closing', 'lot_marketing_fee', 'lot_amenity_fee', 'other_development_fee',
+  'lot_interest', 'land_bank_interest', 'area_cost_geotech', 'other_development_costs', 'hoa_dues',
+  'land_notes', 'pid',
+  'hhl_incentive', 'incentive', 'plan_line_up', 'specifications', 'asp', 'target_margin',
+  'ideal_starting_price', 'builders_competition_graph', 'sales_notes',
+  'erosion', 'city_requirements', 'construction_notes',
+];
+
+const NUMERIC_OUTLINE_FIELDS = new Set([
+  'lot_cost', 'lot_closing', 'lot_marketing_fee', 'lot_amenity_fee', 'other_development_fee',
+  'lot_interest', 'land_bank_interest', 'area_cost_geotech', 'other_development_costs', 'hoa_dues',
+  'hhl_incentive', 'incentive',
+]);
+
+function emptyProgramOutline(projectId) {
+  const empty = { project_id: projectId };
+  for (const field of PROGRAM_OUTLINE_FIELDS) empty[field] = null;
+  return empty;
+}
+
+function normalizeOutlineValue(field, value) {
+  if (value === undefined || value === null || value === '') return null;
+  if (NUMERIC_OUTLINE_FIELDS.has(field)) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+  return String(value);
+}
+
+// ── Routes: Program Outline ─────────────────────────────────────
+app.get('/api/projects/:projectId/program-outline', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM program_outlines WHERE project_id = $1',
+      [req.params.projectId]
+    );
+    res.json(rows[0] || emptyProgramOutline(req.params.projectId));
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
+app.put('/api/projects/:projectId/program-outline', async (req, res) => {
+  const values = PROGRAM_OUTLINE_FIELDS.map(field => normalizeOutlineValue(field, req.body[field]));
+  const insertCols = PROGRAM_OUTLINE_FIELDS.join(', ');
+  const insertPlaceholders = PROGRAM_OUTLINE_FIELDS.map((_, i) => `$${i + 2}`).join(', ');
+  const updateSet = PROGRAM_OUTLINE_FIELDS.map((field, i) => `${field} = $${i + 2}`).join(', ');
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO program_outlines (project_id, ${insertCols})
+       VALUES ($1, ${insertPlaceholders})
+       ON CONFLICT (project_id) DO UPDATE SET ${updateSet}, updated_at = NOW()
+       RETURNING *`,
+      [req.params.projectId, ...values]
+    );
+    res.json(rows[0]);
   } catch (e) { res.status(500).json({ message: e.message }); }
 });
 

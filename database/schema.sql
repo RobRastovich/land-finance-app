@@ -190,3 +190,35 @@ BEGIN
     (c45n2,1,'2028-07-01',27),
     (c45c,1,'2027-01-01',17),(c45c,2,'2027-04-01',17),(c45c,3,'2027-07-01',17),(c45c,4,'2027-10-01',16);
 END $$;
+
+-- ── Program Outline (one per community) ──────────────────────
+CREATE TABLE IF NOT EXISTS program_outlines (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  project_id UUID NOT NULL UNIQUE REFERENCES projects(id) ON DELETE CASCADE,
+  lot_cost NUMERIC(14,2),
+  lot_closing NUMERIC(14,2),
+  lot_marketing_fee NUMERIC(14,2),
+  lot_amenity_fee NUMERIC(14,2),
+  other_development_fee NUMERIC(14,2),
+  lot_interest NUMERIC(14,2),
+  land_bank_interest NUMERIC(14,2),
+  area_cost_geotech NUMERIC(14,2),
+  other_development_costs NUMERIC(14,2),
+  hoa_dues NUMERIC(14,2),
+  land_notes TEXT,
+  pid TEXT,
+  hhl_incentive NUMERIC(14,2),
+  incentive NUMERIC(14,2),
+  plan_line_up TEXT,
+  specifications TEXT,
+  asp TEXT,
+  target_margin TEXT,
+  ideal_starting_price TEXT,
+  builders_competition_graph TEXT,
+  sales_notes TEXT,
+  erosion TEXT,
+  city_requirements TEXT,
+  construction_notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);

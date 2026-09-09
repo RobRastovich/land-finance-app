@@ -20,7 +20,7 @@ export function AppProvider({ children, user }) {
       setModulePermissions(user.module_permissions);
     } else if (isAdmin) {
       // Admins have all permissions by default
-      setModulePermissions({ dashboard: true, builder_manager: true, cash_flow: true, payments: true, pnl: true, documents: true });
+      setModulePermissions({ dashboard: true, builder_manager: true, cash_flow: true, payments: true, pnl: true, documents: true, program_outline: true });
     }
   }, [user, isAdmin]);
 

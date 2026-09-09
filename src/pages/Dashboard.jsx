@@ -307,7 +307,7 @@ export default function Dashboard() {
                     <AlertTriangle className="text-red-500 shrink-0 mt-0.5" size={20} />
                     <div>
                       <p className="text-sm font-semibold text-gray-800">Are you sure you want to delete this community?</p>
-                      <p className="text-sm text-gray-600 mt-1">This will permanently delete all builders, contracts, take downs, payments, expenses, and documents associated with this community.</p>
+                      <p className="text-sm text-gray-600 mt-1">This will permanently delete all builders, contracts, take downs, payments, expenses, documents, and program outline data associated with this community.</p>
                     </div>
                   </div>
                   <div className="flex gap-3 justify-end">

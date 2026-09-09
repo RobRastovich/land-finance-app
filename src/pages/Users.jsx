@@ -10,7 +10,7 @@ export default function Users() {
   const [inviteLink, setInviteLink] = useState('');
   const [copied, setCopied] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
-  const [editForm, setEditForm] = useState({ name: '', email: '', role: 'standard', communityIds: [], modulePermissions: { dashboard: true, builder_manager: true, cash_flow: true, payments: true, pnl: true, documents: true } });
+  const [editForm, setEditForm] = useState({ name: '', email: '', role: 'standard', communityIds: [], modulePermissions: { dashboard: true, builder_manager: true, cash_flow: true, payments: true, pnl: true, documents: true, program_outline: true } });
 
   const load = useCallback(async () => {
     if (!isAdmin) return;
@@ -47,7 +47,7 @@ export default function Users() {
       email: u.email,
       role: u.role,
       communityIds: (u.communities || []).map(c => c.id),
-      modulePermissions: u.module_permissions || { dashboard: true, builder_manager: true, cash_flow: true, payments: true, pnl: true, documents: true },
+      modulePermissions: u.module_permissions || { dashboard: true, builder_manager: true, cash_flow: true, payments: true, pnl: true, documents: true, program_outline: true },
     });
   }
 

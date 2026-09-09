@@ -253,6 +253,27 @@ app.get('/api/projects/:pid/dashboard', (req, res) => {
   res.json(rows);
 });
 
+// Program Outline
+const outlineStore = {};
+const EMPTY_OUTLINE = {
+  lot_cost: null, lot_closing: null, lot_marketing_fee: null, lot_amenity_fee: null,
+  other_development_fee: null, lot_interest: null, land_bank_interest: null,
+  area_cost_geotech: null, other_development_costs: null, hoa_dues: null,
+  land_notes: null, pid: null, hhl_incentive: null, incentive: null,
+  plan_line_up: null, specifications: null, asp: null, target_margin: null,
+  ideal_starting_price: null, builders_competition_graph: null, sales_notes: null,
+  erosion: null, city_requirements: null, construction_notes: null,
+};
+
+app.get('/api/projects/:pid/program-outline', (req, res) => {
+  res.json(outlineStore[req.params.pid] || { project_id: req.params.pid, ...EMPTY_OUTLINE });
+});
+
+app.put('/api/projects/:pid/program-outline', (req, res) => {
+  outlineStore[req.params.pid] = { project_id: req.params.pid, ...EMPTY_OUTLINE, ...req.body };
+  res.json(outlineStore[req.params.pid]);
+});
+
 // Health
 app.get('/health', (req, res) => res.json({ status: 'ok', mode: 'local-mock' }));
 

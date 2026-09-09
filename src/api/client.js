@@ -142,6 +142,12 @@ export const deleteExpense = (id) =>
 export const getPnL = (projectId) =>
   request('GET', `/api/projects/${projectId}/pnl`);
 
+// ── Program Outline ──────────────────────────────────────────
+export const getProgramOutline = (projectId) =>
+  request('GET', `/api/projects/${projectId}/program-outline`);
+export const saveProgramOutline = (projectId, data) =>
+  request('PUT', `/api/projects/${projectId}/program-outline`, data);
+
 // ── Documents ────────────────────────────────────────────────
 export const getDocuments = (projectId) =>
   request('GET', `/api/projects/${projectId}/documents`);
