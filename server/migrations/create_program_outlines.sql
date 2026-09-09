@@ -21,15 +21,15 @@ CREATE TABLE IF NOT EXISTS program_outlines (
   incentive NUMERIC(14,2),
   plan_line_up TEXT,
   specifications TEXT,
-  asp TEXT,
-  target_margin TEXT,
-  ideal_starting_price TEXT,
+  asp NUMERIC(14,2),
+  target_margin NUMERIC(14,2),
+  ideal_starting_price NUMERIC(14,2),
   builders_competition_graph TEXT,
   sales_notes TEXT,
 
   -- Construction
-  erosion TEXT,
-  city_requirements TEXT,
+  erosion NUMERIC(14,2),
+  city_requirements NUMERIC(14,2),
   construction_notes TEXT,
 
   created_at TIMESTAMPTZ DEFAULT NOW(),

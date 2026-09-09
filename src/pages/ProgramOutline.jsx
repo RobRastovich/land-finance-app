@@ -16,18 +16,26 @@ const LAND_COST_FIELDS = [
   { key: 'hoa_dues', code: '81855', label: 'HOA Dues' },
 ];
 
-const SALES_AMOUNT_FIELDS = [
+const SALES_INCENTIVE_FIELDS = [
   { key: 'hhl_incentive', label: 'HHL Incentive' },
   { key: 'incentive', label: 'Incentive' },
 ];
 
+const SALES_CURRENCY_FIELDS = [
+  { key: 'asp', label: 'ASP' },
+  { key: 'target_margin', label: 'Target Margin' },
+  { key: 'ideal_starting_price', label: 'Ideal Starting Price' },
+];
+
 const SALES_TEXT_FIELDS = [
-  { key: 'plan_line_up', label: 'Plan Line Up', rows: 3 },
-  { key: 'specifications', label: 'Specifications', rows: 3 },
-  { key: 'asp', label: 'ASP', rows: 1 },
-  { key: 'target_margin', label: 'Target Margin', rows: 1 },
-  { key: 'ideal_starting_price', label: 'Ideal Starting Price', rows: 1 },
-  { key: 'builders_competition_graph', label: 'Builders for Competition Graph', rows: 3 },
+  { key: 'plan_line_up', label: 'Plan Line Up' },
+  { key: 'specifications', label: 'Specifications' },
+  { key: 'builders_competition_graph', label: 'Builders for Competition Graph' },
+];
+
+const CONSTRUCTION_AMOUNT_FIELDS = [
+  { key: 'erosion', label: 'Erosion' },
+  { key: 'city_requirements', label: 'City Requirements' },
 ];
 
 const EMPTY_FORM = {
@@ -74,6 +82,22 @@ function parseAmount(value) {
 
 function fmt(n) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n || 0);
+}
+
+function CurrencyInput({ value, onChange }) {
+  return (
+    <div className="relative">
+      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+      <input
+        type="number"
+        step="0.01"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="0.00"
+        className="w-full pl-7 pr-3 py-1.5 border border-gray-300 rounded-lg text-sm text-right font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+      />
+    </div>
+  );
 }
 
 export default function ProgramOutline() {
@@ -123,7 +147,8 @@ export default function ProgramOutline() {
   }
 
   const landTotal = LAND_COST_FIELDS.reduce((sum, field) => sum + parseAmount(form[field.key]), 0);
-  const salesIncentiveTotal = SALES_AMOUNT_FIELDS.reduce((sum, field) => sum + parseAmount(form[field.key]), 0);
+  const salesIncentiveTotal = SALES_INCENTIVE_FIELDS.reduce((sum, field) => sum + parseAmount(form[field.key]), 0);
+  const constructionTotal = CONSTRUCTION_AMOUNT_FIELDS.reduce((sum, field) => sum + parseAmount(form[field.key]), 0);
 
   if (loading) return <div className="text-gray-400 p-8">Loading program outline...</div>;
 
@@ -165,14 +190,7 @@ export default function ProgramOutline() {
                   <td className="px-5 py-2.5 font-mono text-xs text-gray-500">{field.code}</td>
                   <td className="px-5 py-2.5 text-gray-800">{field.label}</td>
                   <td className="px-5 py-2.5">
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={form[field.key]}
-                      onChange={(e) => setField(field.key, e.target.value)}
-                      placeholder="0.00"
-                      className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-right font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
+                    <CurrencyInput value={form[field.key]} onChange={(v) => setField(field.key, v)} />
                   </td>
                 </tr>
               ))}
@@ -220,18 +238,11 @@ export default function ProgramOutline() {
               </tr>
             </thead>
             <tbody className="divide-y">
-              {SALES_AMOUNT_FIELDS.map(field => (
+              {SALES_INCENTIVE_FIELDS.map(field => (
                 <tr key={field.key} className="hover:bg-gray-50">
                   <td className="px-5 py-2.5 text-gray-800">{field.label}</td>
                   <td className="px-5 py-2.5">
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={form[field.key]}
-                      onChange={(e) => setField(field.key, e.target.value)}
-                      placeholder="0.00"
-                      className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-right font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
+                    <CurrencyInput value={form[field.key]} onChange={(v) => setField(field.key, v)} />
                   </td>
                 </tr>
               ))}
@@ -239,6 +250,14 @@ export default function ProgramOutline() {
                 <td className="px-5 py-3 text-sm font-semibold text-gray-700">Sales Incentives Total</td>
                 <td className="px-5 py-3 text-right font-mono font-semibold text-gray-800">{fmt(salesIncentiveTotal)}</td>
               </tr>
+              {SALES_CURRENCY_FIELDS.map(field => (
+                <tr key={field.key} className="hover:bg-gray-50">
+                  <td className="px-5 py-2.5 text-gray-800">{field.label}</td>
+                  <td className="px-5 py-2.5">
+                    <CurrencyInput value={form[field.key]} onChange={(v) => setField(field.key, v)} />
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
@@ -246,21 +265,12 @@ export default function ProgramOutline() {
           {SALES_TEXT_FIELDS.map(field => (
             <div key={field.key}>
               <label className="block text-sm font-medium text-gray-700 mb-1">{field.label}</label>
-              {field.rows > 1 ? (
-                <textarea
-                  value={form[field.key]}
-                  onChange={(e) => setField(field.key, e.target.value)}
-                  rows={field.rows}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              ) : (
-                <input
-                  type="text"
-                  value={form[field.key]}
-                  onChange={(e) => setField(field.key, e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              )}
+              <textarea
+                value={form[field.key]}
+                onChange={(e) => setField(field.key, e.target.value)}
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
             </div>
           ))}
           <div>
@@ -280,34 +290,38 @@ export default function ProgramOutline() {
         <div className="bg-[#1F4E79] px-5 py-3">
           <h2 className="text-white font-semibold text-sm tracking-wide">CONSTRUCTION</h2>
         </div>
-        <div className="px-5 py-4 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Erosion</label>
-            <textarea
-              value={form.erosion}
-              onChange={(e) => setField('erosion', e.target.value)}
-              rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">City Requirements</label>
-            <textarea
-              value={form.city_requirements}
-              onChange={(e) => setField('city_requirements', e.target.value)}
-              rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Additional Notes / Information</label>
-            <textarea
-              value={form.construction_notes}
-              onChange={(e) => setField('construction_notes', e.target.value)}
-              rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
+        <div className="p-0">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b">
+              <tr>
+                <th className="text-left px-5 py-3 font-medium text-gray-600">Item</th>
+                <th className="text-right px-5 py-3 font-medium text-gray-600 w-48">Amount</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {CONSTRUCTION_AMOUNT_FIELDS.map(field => (
+                <tr key={field.key} className="hover:bg-gray-50">
+                  <td className="px-5 py-2.5 text-gray-800">{field.label}</td>
+                  <td className="px-5 py-2.5">
+                    <CurrencyInput value={form[field.key]} onChange={(v) => setField(field.key, v)} />
+                  </td>
+                </tr>
+              ))}
+              <tr className="bg-gray-50">
+                <td className="px-5 py-3 text-sm font-semibold text-gray-700">Construction Total</td>
+                <td className="px-5 py-3 text-right font-mono font-semibold text-gray-800">{fmt(constructionTotal)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div className="px-5 py-4 border-t">
+          <label className="block text-sm font-medium text-gray-700 mb-1">Additional Notes / Information</label>
+          <textarea
+            value={form.construction_notes}
+            onChange={(e) => setField('construction_notes', e.target.value)}
+            rows={3}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
         </div>
       </section>
 

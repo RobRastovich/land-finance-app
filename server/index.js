@@ -128,13 +128,13 @@ pool.on('error', (err) => console.error('PG pool error:', err));
         incentive NUMERIC(14,2),
         plan_line_up TEXT,
         specifications TEXT,
-        asp TEXT,
-        target_margin TEXT,
-        ideal_starting_price TEXT,
+        asp NUMERIC(14,2),
+        target_margin NUMERIC(14,2),
+        ideal_starting_price NUMERIC(14,2),
         builders_competition_graph TEXT,
         sales_notes TEXT,
-        erosion TEXT,
-        city_requirements TEXT,
+        erosion NUMERIC(14,2),
+        city_requirements NUMERIC(14,2),
         construction_notes TEXT,
         created_at TIMESTAMPTZ DEFAULT NOW(),
         updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -143,6 +143,20 @@ pool.on('error', (err) => console.error('PG pool error:', err));
     console.log('Migration: program_outlines table created');
   } catch (e) {
     console.error('Migration error (program_outlines):', e.message);
+  }
+
+  try {
+    await pool.query(`
+      ALTER TABLE program_outlines
+        ALTER COLUMN asp TYPE NUMERIC(14,2) USING NULLIF(regexp_replace(asp::text, '[^0-9.-]', '', 'g'), '')::numeric,
+        ALTER COLUMN target_margin TYPE NUMERIC(14,2) USING NULLIF(regexp_replace(target_margin::text, '[^0-9.-]', '', 'g'), '')::numeric,
+        ALTER COLUMN ideal_starting_price TYPE NUMERIC(14,2) USING NULLIF(regexp_replace(ideal_starting_price::text, '[^0-9.-]', '', 'g'), '')::numeric,
+        ALTER COLUMN erosion TYPE NUMERIC(14,2) USING NULLIF(regexp_replace(erosion::text, '[^0-9.-]', '', 'g'), '')::numeric,
+        ALTER COLUMN city_requirements TYPE NUMERIC(14,2) USING NULLIF(regexp_replace(city_requirements::text, '[^0-9.-]', '', 'g'), '')::numeric
+    `);
+    console.log('Migration: program_outlines currency columns updated');
+  } catch (e) {
+    console.error('Migration error (program_outlines currency):', e.message);
   }
 })();
 
@@ -1240,7 +1254,8 @@ const PROGRAM_OUTLINE_FIELDS = [
 const NUMERIC_OUTLINE_FIELDS = new Set([
   'lot_cost', 'lot_closing', 'lot_marketing_fee', 'lot_amenity_fee', 'other_development_fee',
   'lot_interest', 'land_bank_interest', 'area_cost_geotech', 'other_development_costs', 'hoa_dues',
-  'hhl_incentive', 'incentive',
+  'hhl_incentive', 'incentive', 'asp', 'target_margin', 'ideal_starting_price',
+  'erosion', 'city_requirements',
 ]);
 
 function emptyProgramOutline(projectId) {
